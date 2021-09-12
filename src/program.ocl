@@ -3,7 +3,7 @@ size_t get_offset(int x, int y, int width, int height)
 {
     x = clamp(x, 0, width - 1);
     y = clamp(y, 0, height - 1);
-    return y * width * 4 + x * 4;
+    return y * width + x;
 }
 
 __kernel void edge_detect(
@@ -18,11 +18,8 @@ __kernel void edge_detect(
     const int offset = get_offset(x, y, width, height);
 
     dst[offset] = 0;
-    dst[offset + 1] = 0;
-    dst[offset + 2] = 0;
-    dst[offset + 3] = 255;
 
-    if(src[offset] >= 128) 
+    if(src[offset * 4] >= 128) 
     {
         bool has_zero = false;
         for(int y1 = -1; y1 <= 1; ++y1)
@@ -31,7 +28,7 @@ __kernel void edge_detect(
             {
                 if(x1 != x && y1 != y) 
                 {
-                    if(src[get_offset(x, y, width, height)] < 128)
+                    if(src[get_offset(x, y, width, height) * 4] < 128)
                     {
                         has_zero = true;
                         break;
@@ -40,18 +37,8 @@ __kernel void edge_detect(
             }
         }
 
-        if(has_zero) 
-        {
-            // Now is the edge
-            dst[offset] = 255;
-        }
-        else 
-        {
-            // Now is inner
-            dst[offset] = 255;
-            dst[offset + 1] = 255;
-            dst[offset + 2] = 255;
-        }
+        if(has_zero) dst[offset] = 255; // Now is the edge
+        else dst[offset] = 127;         // Now is inner
     }
 }
 

@@ -8,4 +8,8 @@ build = "build.rs"
 
 [dependencies]
 png = "0.17.1"
-opencl3 = "0.4.1"
+clap = "2.33"
+
+[dependencies.opencl3]
+version = "0.5"
+features = ["CL_VERSION_2_2"]
