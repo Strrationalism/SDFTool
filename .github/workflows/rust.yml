@@ -1,0 +1,23 @@
+name: Rust
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  build:
+
+    runs-on: windows-latest
+
+    steps:
+    - uses: actions/checkout@v2
+    - name: Build i686
+      run: cargo build --verbose --release --target stable-i686-pc-windows-msvc
+    - name: Build x86_64
+      run: cargo build --verbose --release --target stable-x86_64-pc-windows-msvc
+
