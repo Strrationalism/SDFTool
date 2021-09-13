@@ -16,8 +16,6 @@ jobs:
 
     steps:
     - uses: actions/checkout@v2
-    - name: Build i686
-      run: cargo build --verbose --release --target i686-pc-windows-msvc
-    - name: Build x86_64
-      run: cargo build --verbose --release --target x86_64-pc-windows-msvc
+    - name: Build
+      run: cargo build --verbose --release
 
