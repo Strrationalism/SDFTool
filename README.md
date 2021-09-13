@@ -1,5 +1,5 @@
 # SDFTool
-Signed distance field font and image command line tool.
+Signed distance field font and image command line tool based on OpenCL.
 
 ## Build
 
