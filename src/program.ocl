@@ -12,8 +12,8 @@ __kernel void edge_detect(
     int width,
     int height) 
 {
-    const int y = get_global_id(0);
-    const int x = get_global_id(1);
+    const int x = get_global_id(0);
+    const int y = get_global_id(1);
 
     const int offset = get_offset(x, y, width, height);
 
@@ -22,13 +22,13 @@ __kernel void edge_detect(
     if(src[offset * 4] >= 128) 
     {
         bool has_zero = false;
-        for(int y1 = -1; y1 <= 1; ++y1)
+        for(int y1 = y - 1; y1 <= y + 1; ++ y1)
         {
-            for(int x1 = -1; x1 <= 1; ++ x1) 
+            for(int x1 = x - 1; x1 <= x + 1; ++ x1) 
             {
-                if(x1 != x && y1 != y) 
+                if(x1 != x || y1 != y) 
                 {
-                    if(src[get_offset(x, y, width, height) * 4] < 128)
+                    if(src[get_offset(x1, y1, width, height) * 4] < 128)
                     {
                         has_zero = true;
                         break;

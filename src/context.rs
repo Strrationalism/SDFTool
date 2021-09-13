@@ -57,48 +57,72 @@ impl Context {
         }
     }
 
+    pub fn command_queue_count(&self) -> usize {
+        self.command_queues.len()
+    }
+
     pub fn edge_detect(
         &self, 
         command_queue: usize,
-        src: &svm::SvmVec<u8>,
-        dst: &mut svm::SvmVec<u8>,
+        src: &memory::Buffer<u8>,       // RGB32
+        dst: &mut memory::Buffer<u8>,   // R8
         width: usize,
-        height: usize)
+        height: usize,
+        wait: &[event::Event])
+        -> event::Event
     {
-        kernel::ExecuteKernel::new(&self.edge_detect)
-            .set_arg_svm(src.as_ptr())
-            .set_arg_svm(dst.as_mut_ptr())
+        let mut exe = kernel::ExecuteKernel::new(&self.edge_detect);
+        exe
+            .set_arg(src)
+            .set_arg(dst)
             .set_arg(&width)
             .set_arg(&height)
-            .set_global_work_sizes(&[width, height])
-            .enqueue_nd_range(&self.command_queues[command_queue])
-            .unwrap();
+            .set_global_work_sizes(&[width, height]);
+            
         
+        for i in wait {
+            exe.set_wait_event(i);
+        }
+
+        exe
+            .enqueue_nd_range(&self.command_queues[command_queue])
+            .unwrap()
     }
 
-    pub fn do_svm<T, F>(&self, cmd_queue: usize, flags: u64, buf: &mut svm::SvmVec<T>, operation: F) 
-        where F: Fn(&mut svm::SvmVec<T>) 
+    pub fn write_buffer<T>(
+        &self,
+        command_queue: usize,
+        src: &[T],
+        dst: &mut memory::Buffer<T>,
+        wait: &[event::Event])
+        -> event::Event 
     {
-        let cmd_queue = &self.command_queues[cmd_queue];
-        if !buf.is_fine_grained() {
-            cmd_queue.enqueue_svm_map(
-                types::CL_BLOCKING, 
-                flags, 
-                buf, 
-                &[]
-            ).unwrap();
-        }
+        let wait: Vec<*mut core::ffi::c_void> =
+            wait
+                .iter()
+                .map(|x| x.get())
+                .collect();
 
-        operation(buf);
-
-        if !buf.is_fine_grained() {
-            let unmap_test_values_event = 
-                cmd_queue.enqueue_svm_unmap(&buf, &[]).unwrap();
-            unmap_test_values_event.wait().unwrap();
-        }
+        self.command_queues[command_queue].enqueue_write_buffer(
+            dst, types::CL_NON_BLOCKING, 0, src, &wait).unwrap()
     }
 
-    pub fn upload_svm<T>(&self, cmd_queue: usize, buf: &mut svm::SvmVec<T>, data: &mut [T]) where T: Clone {
-        self.do_svm(cmd_queue, memory::CL_MAP_WRITE, buf, |buf| buf.clone_from_slice(data));
+    pub fn read_buffer<T>(
+        &self,
+        command_queue: usize,
+        src: &memory::Buffer<T>,
+        dst: &mut [T],
+        wait: &[event::Event])
+        -> event::Event
+    {
+        let wait: Vec<*mut core::ffi::c_void> =
+            wait
+                .iter()
+                .map(|x| x.get())
+                .collect();
+
+        self.command_queues[command_queue].enqueue_read_buffer(
+            src, types::CL_NON_BLOCKING, 0, dst, &wait
+        ).unwrap()
     }
 }

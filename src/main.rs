@@ -86,30 +86,62 @@ fn main() {
             platform::get_platforms()
                 .unwrap()
                 .into_iter()
-                .nth(0)
+                .nth(1)
                 .expect("Can not get first device.");
 
         let context = crate::context::Context::new(first_opencl_platform);
 
+        // NVIDIA不支持SVM，全换Buffer
         let mut input_image = 
-            svm::SvmVec::<u8>::allocate(
+            memory::Buffer::<u8>::create(
                 &context.opencl_context,
-                image_bytes.len()
+                memory::CL_MEM_WRITE_ONLY,
+                image_bytes.len(),
+                std::ptr::null_mut()
             ).unwrap();
 
-        context.upload_svm(0, &mut input_image, image_bytes);
+        let wait_for_write_buffer = 
+            context.write_buffer(0, &image_bytes, &mut input_image, &[]);
 
         let mut edge = 
-            svm::SvmVec::<u8>::allocate(
-                &context.opencl_context, 
-                image_bytes.len() / 4
+            memory::Buffer::<u8>::create(
+                &context.opencl_context,
+                memory::CL_MEM_READ_ONLY,
+                image_bytes.len() / 4,
+                std::ptr::null_mut()
             ).unwrap();
 
-        context.edge_detect(
-            0, 
-            &input_image, 
-            &mut edge, 
-            frame_info.width as usize, 
-            frame_info.height as usize);
+        let wait_for_edge_detect =
+            context.edge_detect(
+                0, 
+                &input_image, 
+                &mut edge, 
+                frame_info.width as usize, 
+                frame_info.height as usize,
+                &[wait_for_write_buffer]);
+        
+        let mut output_buf: Vec<u8> = vec![0; image_bytes.len() / 4];
+
+        let wait_for_read_buffer =
+            context.read_buffer(0, &edge, &mut output_buf, &[wait_for_edge_detect]);
+
+        let output = 
+            File::create(matches
+                .value_of("OUTPUT")
+                .expect("Output path not given.")
+            ).unwrap();
+
+        let ref mut w = std::io::BufWriter::new(output);
+
+        let mut enc = 
+            png::Encoder::new(w, frame_info.width, frame_info.height);
+        
+        enc.set_color(png::ColorType::Grayscale);
+        enc.set_depth(png::BitDepth::Eight);
+
+        let mut writer = enc.write_header().unwrap();
+        wait_for_read_buffer.wait().unwrap();
+        
+        writer.write_image_data(&output_buf).unwrap();
     }
 }
