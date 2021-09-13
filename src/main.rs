@@ -5,7 +5,23 @@ use clap::{App, SubCommand, Arg};
 use opencl3::*;
 
 fn main() {
-    let matches = 
+    let search_radius_arg =
+        Arg::with_name("search-radius")
+            .help("Set the radius for edge searching")
+            .long("search-radius")
+            .short("r")
+            .default_value("128")
+            .multiple(false);
+
+    let stride_arg =
+        Arg::with_name("stride")
+            .help("Set the downsample stride size (1 will not downsample)")
+            .long("stride")
+            .short("s")
+            .default_value("4")
+            .multiple(false);
+
+    let mut app = 
         App::new("SDF Tool")
             .bin_name("sdftool")
             .version("v0.1")
@@ -22,126 +38,155 @@ fn main() {
                     .help("Output path for SDF image in PNG format")
                     .multiple(false)
                     .required(true))
-            )
+                .arg(Arg::with_name("platform-id")
+                    .help("Select the platform to use")
+                    .long("--platform-id")
+                    .multiple(false)
+                    .default_value("0"))
+                .arg(Arg::with_name("device-id")
+                    .help("Select the device to use")
+                    .long("--device-id")
+                    .multiple(false)
+                    .default_value("0"))
+                .arg(search_radius_arg)
+                .arg(stride_arg))
             .subcommand(SubCommand::with_name("cl-devices")
-                .about("List OpenCL devices"))
-            .get_matches();
+                .about("List OpenCL devices"));
+
+    if std::env::args().nth(1) == None {
+        app.print_help().unwrap();
+    }
+
+    let matches = app.get_matches();
 
     if let Some(_) = matches.subcommand_matches("cl-devices") {
         let platforms = 
         platform::get_platforms()
             .expect("Can not get opencl platforms.");
 
-        for platform in platforms {
-            println!("Platform: {}", platform.name().expect("Can not get platform."));
+        let mut platform_id = 0;
 
+        for platform in platforms {
+            println!(
+                "Platform {}: {}", 
+                platform_id, 
+                platform.name().expect("Can not get platform."));
+
+            platform_id = platform_id + 1;
 
             let devices = 
                 platform.get_devices(device::CL_DEVICE_TYPE_ALL)
                     .expect("Can not get devices.");
                     
+            let mut device_id = 0;
+
             for device in devices {
                 let device = device::Device::new(device);
-                println!("    {} ({})", 
+
+                println!("    {}. {} ({})", 
+                    device_id,
                     device.name().unwrap(), 
                     device::device_type_text(
                         device.dev_type().unwrap()));
+
+                device_id = device_id + 1;
             }
         }
     }
 
     if let Some(matches) = matches.subcommand_matches("symbol") {
-        let input_png = 
-            png::Decoder::new(
-                File::open(
-                    matches
-                        .value_of("INPUT")
-                        .expect("Input file not given."))
-                    .expect("Can not open the input file."));
-
-        let mut png_info = 
-            input_png
-                .read_info()
-                .expect("Can not read information of png.");
-
-        let mut buf = 
-            vec![0; png_info.output_buffer_size()];
-
-        let frame_info = 
-            png_info
-                .next_frame(&mut buf)
-                .expect("Can not read frame from png.");
-
-        let image_bytes = &mut buf[..frame_info.buffer_size()];
-
-        if frame_info.bit_depth != png::BitDepth::Eight {
-            panic!("PNG Frame must in 8 bits.");
-        }
-
-        if frame_info.color_type != png::ColorType::Rgba {
-            panic!("PNG Frame must in RGBA type.");
-        }     
-        
-        let first_opencl_platform =
-            platform::get_platforms()
-                .unwrap()
-                .into_iter()
-                .nth(1)
-                .expect("Can not get first device.");
-
-        let context = crate::context::Context::new(first_opencl_platform);
-
-        // NVIDIA不支持SVM，全换Buffer
-        let mut input_image = 
-            memory::Buffer::<u8>::create(
-                &context.opencl_context,
-                memory::CL_MEM_WRITE_ONLY,
-                image_bytes.len(),
-                std::ptr::null_mut()
-            ).unwrap();
-
-        let wait_for_write_buffer = 
-            context.write_buffer(0, &image_bytes, &mut input_image, &[]);
-
-        let mut edge = 
-            memory::Buffer::<u8>::create(
-                &context.opencl_context,
-                memory::CL_MEM_READ_ONLY,
-                image_bytes.len() / 4,
-                std::ptr::null_mut()
-            ).unwrap();
-
-        let wait_for_edge_detect =
-            context.edge_detect(
-                0, 
-                &input_image, 
-                &mut edge, 
-                frame_info.width as usize, 
-                frame_info.height as usize,
-                &[wait_for_write_buffer]);
-        
-        let mut output_buf: Vec<u8> = vec![0; image_bytes.len() / 4];
-
-        let wait_for_read_buffer =
-            context.read_buffer(0, &edge, &mut output_buf, &[wait_for_edge_detect]);
-
-        let output = 
-            File::create(matches
-                .value_of("OUTPUT")
-                .expect("Output path not given.")
-            ).unwrap();
-
-        let ref mut w = std::io::BufWriter::new(output);
-
-        let mut enc = 
-            png::Encoder::new(w, frame_info.width, frame_info.height);
-        
-        enc.set_color(png::ColorType::Grayscale);
-        enc.set_depth(png::BitDepth::Eight);
-
-        let mut writer = enc.write_header().unwrap();
-        wait_for_read_buffer.wait().unwrap();
-        
-        writer.write_image_data(&output_buf).unwrap();
+        symbol(matches);
     }
+}
+
+fn symbol(matches: &clap::ArgMatches) {
+    let first_opencl_platform =
+        platform::get_platforms()
+            .unwrap()
+            .into_iter()
+            .nth(matches.value_of("platform-id").unwrap_or("0").parse::<usize>().unwrap())
+            .expect("Can not get the platform.");
+
+    let device_id =
+        matches.value_of("device-id").unwrap_or("0").parse::<usize>().unwrap();
+
+    let context = crate::context::Context::new(first_opencl_platform);
+
+    let (image, width, height) =
+        context.load_png(device_id, matches.value_of("INPUT").expect("No input png given."));
+
+    let mut edge = 
+        memory::Buffer::<u8>::create(
+            &context.opencl_context,
+            0,
+            width * height,
+            std::ptr::null_mut()
+        ).unwrap();
+
+    let wait_for_edge_detect =
+        context.edge_detect(
+            device_id, 
+            &image, 
+            &mut edge, 
+            width, 
+            height,
+            &[]);
+
+    let stride = 
+        matches.value_of("stride").unwrap().parse().unwrap();
+
+    let search_radius = 
+        matches.value_of("search-radius").unwrap().parse().unwrap();
+
+    if stride <= 0 {
+        panic!("Stride must greate or equals 1.")
+    }
+
+    let sdf_width = width / stride;
+    let sdf_height = height / stride;
+    let mut sdf =
+        memory::Buffer::<u8>::create(
+            &context.opencl_context,
+            memory::CL_MEM_READ_ONLY,
+            sdf_width * sdf_height,
+            std::ptr::null_mut()
+        ).unwrap();
+
+    let wait_for_sdf_generate =
+        context.sdf_generate(
+            device_id,
+            &edge,
+            &mut sdf,
+            width,
+            height,
+            sdf_width,
+            sdf_height,
+            stride,
+            search_radius,
+            &[wait_for_edge_detect]
+        );
+
+    let mut output_buf: Vec<u8> = vec![0; sdf_width * sdf_height];
+
+    let wait_for_read_buffer =
+        context.read_buffer(device_id, &sdf, &mut output_buf, &[wait_for_sdf_generate]);
+
+    let output = 
+        File::create(matches
+            .value_of("OUTPUT")
+            .expect("Output path not given.")
+        ).unwrap();
+
+    let ref mut w = std::io::BufWriter::new(output);
+
+    let mut enc = 
+        png::Encoder::new(w, sdf_width as u32, sdf_height as u32);
+
+    enc.set_color(png::ColorType::Grayscale);
+    enc.set_depth(png::BitDepth::Eight);
+
+    let mut writer = enc.write_header().unwrap();
+    wait_for_read_buffer.wait().unwrap();
+
+    writer.write_image_data(&output_buf).unwrap();
 }
