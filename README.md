@@ -10,7 +10,7 @@ Signed distance field font and image command line tool.
 
 ## Usage
 
-### Show OpenCL Devices
+### Show OpenCL devices
 ```
 sdftool cl-devices
 ```
