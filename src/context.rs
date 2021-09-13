@@ -26,7 +26,7 @@ impl Context {
         let mut program = 
             program::Program::create_from_source(
                 &opencl_context,
-                include_str!("program.ocl"))
+                include_str!("program.cl"))
                 .unwrap();
 
 
