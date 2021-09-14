@@ -1,0 +1,31 @@
+name: Rust
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  build:
+
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v2
+      with:
+        submodules: 'recursive'
+    - run: |
+        cd OpenCL-SDK
+        mkdir build
+        cd build
+        cmake .. -G "Unix Makefiles"
+        make
+    - uses: actions/upload-artifact@v2.2.4
+      with:
+        path: ${{ github.workspace }}/OpenCL-SDK/build
+        
+      
