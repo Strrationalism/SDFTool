@@ -19,6 +19,8 @@ jobs:
       uses: egor-tensin/vs-shell@v2
       with:
         arch: x64
+    - name: Setup Ninja
+      uses: ashutoshvarma/setup-ninja@v1.1
     - name: Checkout repository
       uses: actions/checkout@v2.3.4
       with:
