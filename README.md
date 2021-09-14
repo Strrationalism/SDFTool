@@ -5,8 +5,7 @@ Signed distance field font and image command line tool based on OpenCL.
 
 ### Windows
 
-1. Install the [OpenCL SDK from Intel](https://software.intel.com/content/www/cn/zh/develop/tools/opencl-sdk.html?wapkw=OpenCL%20SDK) to default path.
-2. `cargo build --release`
+Run `cargo build --release` in Visual Studio developer command prompt.
 
 ## Usage
 
