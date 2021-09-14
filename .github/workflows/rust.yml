@@ -35,5 +35,5 @@ jobs:
       uses: actions/upload-artifact@v2.2.4
       with:
         name: SDFTool for ${{ runner.os }}
-        path: ${{ github.workspace }}/target/release/sdftool[.exe]
+        path: ${{ github.workspace }}/target/release/sdftool(.exe)?
         
