@@ -12,14 +12,15 @@ env:
 jobs:
   build:
 
-    runs-on: ubuntu-latest
+    runs-on: windows-latest
 
     steps:
     - uses: actions/checkout@v2
       with:
         submodules: 'recursive'
+    - uses: egor-tensin/vs-shell@v2
     - run: rustup default nightly
     - name: Build
-      run: cargo build --verbose
+      run: cargo build --verbose --release
     - name: Run tests
       run: cargo test --verbose
