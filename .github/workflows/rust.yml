@@ -24,9 +24,6 @@ jobs:
     - uses: egor-tensin/vs-shell@v2
       if: ${{ matrix.os == 'windows-latest' }}
     - run: rustup default nightly
-      if: ${{ matrix.os != 'ubuntu-latest' }}
-    - run: rustup default nightly-musl
-      if: ${{ matrix.os == 'ubuntu-latest' }}
     - name: Build
       run: cargo build --verbose --release
     - name: Run tests
