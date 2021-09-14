@@ -14,7 +14,7 @@ fn setup_opencl_sdk() {
                 .arg("Ninja")
                 .current_dir("./OpenCL-SDK/build")
                 .status()
-                .unwrap();
+                .expect("Cargo build command must run in Visual Studio prompt or CMake not installed.");
 
         assert!(status.success());
     }
@@ -24,7 +24,7 @@ fn setup_opencl_sdk() {
             Command::new("ninja")
                 .current_dir("./OpenCL-SDK/build")
                 .status()
-                .unwrap();
+                .expect("Cargo build command must run in Visual Studio prompt or Ninja not installed.");
         
         assert!(status.success());
     }
