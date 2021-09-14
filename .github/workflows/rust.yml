@@ -22,22 +22,18 @@ jobs:
       with:
         submodules: 'recursive'
     - uses: egor-tensin/vs-shell@v2
-      if: ${{ matrix.os == 'windows-latest' }}
+      if: ${{ runner.os == 'Windows' }}
     - run: rustup default nightly
     - name: Build
       run: cargo build --verbose --release
     - name: Run tests
       run: cargo test --verbose --release
-    - name: Upload a Build Artifact for Windows
-      uses: actions/upload-artifact@v2.2.4
-      if: ${{ matrix.os == 'windows-latest' }}
-      with:
-        name: SDFTool for Windows
-        path: ${{ github.workspace }}/target/release/sdftool.exe
+    - name: Strip
+      if: ${{ runner.os != 'Windows' }}
+      run: strip ${{ github.workspace }}/target/release/sdftool
     - name: Upload a Build Artifact
       uses: actions/upload-artifact@v2.2.4
-      if: ${{ matrix.os != 'windows-latest' }}
       with:
         name: SDFTool for ${{ runner.os }}
-        path: ${{ github.workspace }}/target/release/sdftool
+        path: ${{ github.workspace }}/target/release/sdftool[.exe]
         
