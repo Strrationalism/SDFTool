@@ -1,7 +1,7 @@
 #![feature(path_try_exists)]
 use std::{fs::*, process::Command};
 
-fn setup_opencl_sdk(target: &str) {
+fn setup_opencl_sdk() {
     if !try_exists("./OpenCL-SDK/LICENSE").unwrap() {
         let status =
             Command::new("git")
@@ -35,19 +35,12 @@ fn setup_opencl_sdk(target: &str) {
         create_dir("./OpenCL-SDK/build").unwrap();
     }
 
-    if !try_exists("./OpenCL-SDK/build/CMakeCache.txt").unwrap() {
-        let g =
-            if target.contains("pc-windows-msvc") {
-                "NMake Makefiles"
-            } else {
-                "Unix Makefiles"
-            };
-
+    if !try_exists("./OpenCL-SDK/build/build.ninja").unwrap() {
         let status = 
             Command::new("cmake")
                 .arg("..")
                 .arg("-G")
-                .arg(g)
+                .arg("Ninja")
                 .current_dir("./OpenCL-SDK/build")
                 .status()
                 .unwrap();
@@ -57,30 +50,15 @@ fn setup_opencl_sdk(target: &str) {
 
     if !try_exists("./OpenCL-SDK/build/external/OpenCL-ICD-Loader").unwrap() {
         let status =
-            if target.contains("pc-windows-msvc") {
-                Command::new("nmake")
-                    .current_dir("./OpenCL-SDK/build")
-                    .status()
-                    .unwrap()
-            } else {
-                Command::new("make")
-                    .current_dir("./OpenCL-SDK/build")
-                    .status()
-                    .unwrap()
-            };
+            Command::new("ninja")
+                .current_dir("./OpenCL-SDK/build")
+                .status()
+                .unwrap();
         
         assert!(status.success());
     }
 }
 
 fn main() {
-    let target = std::env::var("TARGET").expect("TARGET was not set.");
-
-    setup_opencl_sdk(&target);
-
-    if target.contains("pc-windows-msvc") {
-        println!("cargo:rustc-link-search=./OpenCL-SDK/build/external/OpenCL-ICD-Loader/");
-    } else {
-        panic!("Not supported!");
-    }
+    println!("cargo:rustc-link-search=./OpenCL-SDK/build/external/OpenCL-ICD-Loader/");
 }
