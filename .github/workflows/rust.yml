@@ -15,14 +15,14 @@ jobs:
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        os: [ windows-latest, macos-latest ]
+        os: [ windows-latest, macos-latest, ubuntu-latest ]
 
     steps:
     - uses: actions/checkout@v2
       with:
         submodules: 'recursive'
     - uses: egor-tensin/vs-shell@v2
-      if: ${{ matrix.os }} == 'windows-latest'
+      if: ${{ matrix.os == 'windows-latest' }}
     - run: rustup default nightly
     - name: Build
       run: cargo build --verbose --release
@@ -32,10 +32,12 @@ jobs:
       uses: actions/upload-artifact@v2.2.4
       if: ${{ matrix.os == 'windows-latest' }}
       with:
+        name: SDFTool for Windows
         path: ${{ github.workspace }}/target/release/sdftool.exe
     - name: Upload a Build Artifact
       uses: actions/upload-artifact@v2.2.4
       if: ${{ matrix.os != 'windows-latest' }}
       with:
+        name: SDFTool for ${{ runner.os }}
         path: ${{ github.workspace }}/target/release/sdftool
         
