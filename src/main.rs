@@ -1,4 +1,5 @@
 mod context;
+mod charset;
 
 use std::fs::File;
 use clap::{App, SubCommand, Arg};
@@ -48,10 +49,52 @@ fn main() {
                     .long("--device-id")
                     .multiple(false)
                     .default_value("0"))
-                .arg(search_radius_arg)
-                .arg(stride_arg))
+                .arg(search_radius_arg.clone())
+                .arg(stride_arg.clone()))
             .subcommand(SubCommand::with_name("cl-devices")
-                .about("List OpenCL devices"));
+                .about("List OpenCL devices"))
+            .subcommand(SubCommand::with_name("font")
+                .about("Create the sdf font")
+                .arg(Arg::with_name("outdir")
+                    .help("Output path"))
+                .arg(search_radius_arg)
+                .arg(stride_arg.default_value("64"))
+                .arg(Arg::with_name("no-ascii")
+                    .long("no-ascii")
+                    .multiple(false)
+                    .help("Do not generate ascii charset"))
+                .arg(Arg::with_name("schinese1")
+                    .long("schinese-1")
+                    .multiple(false)
+                    .help("Generate common standard chinese table 1"))
+                .arg(Arg::with_name("schinese2")
+                    .long("schinese-2")
+                    .multiple(false)
+                    .help("Generate common standard chinese table 2"))
+                .arg(Arg::with_name("schinese3")
+                    .long("schinese-3")
+                    .multiple(false)
+                    .help("Generate common standard chinese table 3"))
+                .arg(Arg::with_name("page-width")
+                    .long("page-width")
+                    .default_value("1024")
+                    .help("Single page width in pixels"))
+                .arg(Arg::with_name("page-height")
+                    .long("page-height")
+                    .default_value("1024")
+                    .help("Single page height in pixels"))
+                .arg(Arg::with_name("margin-x")
+                    .long("margin-x")
+                    .default_value("0")
+                    .help("Margin X on every character in pixels"))
+                .arg(Arg::with_name("margin-y")
+                    .long("margin-y")
+                    .default_value("0")
+                    .help("Margin Y on every character in pixels"))
+                .arg(Arg::with_name("origin-size")
+                    .long("origin-size")
+                    .default_value("4096")
+                    .help("Basic font size before downsample")));
 
     if std::env::args().nth(1) == None {
         app.print_help().unwrap();
@@ -60,42 +103,46 @@ fn main() {
     let matches = app.get_matches();
 
     if let Some(_) = matches.subcommand_matches("cl-devices") {
-        let platforms = 
-        platform::get_platforms()
-            .expect("Can not get opencl platforms.");
-
-        let mut platform_id = 0;
-
-        for platform in platforms {
-            println!(
-                "Platform {}: {}", 
-                platform_id, 
-                platform.name().expect("Can not get platform."));
-
-            platform_id = platform_id + 1;
-
-            let devices = 
-                platform.get_devices(device::CL_DEVICE_TYPE_ALL)
-                    .expect("Can not get devices.");
-                    
-            let mut device_id = 0;
-
-            for device in devices {
-                let device = device::Device::new(device);
-
-                println!("    {}. {} ({})", 
-                    device_id,
-                    device.name().unwrap(), 
-                    device::device_type_text(
-                        device.dev_type().unwrap()));
-
-                device_id = device_id + 1;
-            }
-        }
+        show_cl_devices();
     }
-
-    if let Some(matches) = matches.subcommand_matches("symbol") {
+    
+    else if let Some(matches) = matches.subcommand_matches("symbol") {
         symbol(matches);
+    }
+}
+
+fn show_cl_devices() {
+    let platforms = 
+    platform::get_platforms()
+        .expect("Can not get opencl platforms.");
+
+    let mut platform_id = 0;
+
+    for platform in platforms {
+        println!(
+            "Platform {}: {}", 
+            platform_id, 
+            platform.name().expect("Can not get platform."));
+
+        platform_id = platform_id + 1;
+
+        let devices = 
+            platform.get_devices(device::CL_DEVICE_TYPE_ALL)
+                .expect("Can not get devices.");
+                
+        let mut device_id = 0;
+
+        for device in devices {
+            let device = device::Device::new(device);
+
+            println!("    {}. {} ({})", 
+                device_id,
+                device.name().unwrap(), 
+                device::device_type_text(
+                    device.dev_type().unwrap()));
+
+            device_id = device_id + 1;
+        }
     }
 }
 

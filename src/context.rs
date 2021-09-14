@@ -9,7 +9,7 @@ pub struct Context {
 }
 
 impl Context {
-    pub fn new(platform: platform::Platform) -> Context {
+    pub fn new(platform: platform::Platform) -> Self {
         let devices = 
             platform
                 .get_devices(device::CL_DEVICE_TYPE_ALL)
@@ -58,7 +58,7 @@ impl Context {
                 )
                 .collect();
 
-        Context {
+        Self {
             opencl_context,
             edge_detect,
             command_queues,

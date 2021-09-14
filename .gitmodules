@@ -1,0 +1,3 @@
+[submodule "src/charset/common-standard-chinese-characters-table"]
+	path = src/charset/common-standard-chinese-characters-table
+	url = git@github.com:shengdoushi/common-standard-chinese-characters-table.git
