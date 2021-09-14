@@ -45,7 +45,8 @@ fn setup_opencl_sdk(target: &str) {
 }
 
 fn main() {
+    let project_dir = std::env::var("CARGO_MANIFEST_DIR").unwrap();
     let target = std::env::var("TARGET").unwrap();
     setup_opencl_sdk(&target);
-    println!("cargo:rustc-link-search=native=./OpenCL-SDK/build/external/OpenCL-ICD-Loader/");
+    println!("cargo:rustc-link-search={}/OpenCL-SDK/build/external/OpenCL-ICD-Loader/", project_dir);
 }
