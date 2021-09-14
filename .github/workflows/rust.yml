@@ -38,5 +38,7 @@ jobs:
         path: |
           ${{ github.workspace }}/target/release/sdftool
           ${{ github.workspace }}/target/release/sdftool.exe
+          ${{ github.workspace }}/OpenCL-SDK/build/external/OpenCL-ICD-Loader/OpenCL.dll
+          ${{ github.workspace }}/OpenCL-SDK/build/external/OpenCL-ICD-Loader/OpenCL.dylib
           
         
