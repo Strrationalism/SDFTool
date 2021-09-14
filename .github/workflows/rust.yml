@@ -10,48 +10,24 @@ env:
   CARGO_TERM_COLOR: always
 
 jobs:
-  build-windows:
-
-    runs-on: windows-latest
-
-    steps:
-    - name: Visual Studio shell
-      uses: egor-tensin/vs-shell@v2
-      with:
-        arch: x64
-    - name: Setup Ninja
-      uses: ashutoshvarma/setup-ninja@v1.1
-    - name: Checkout repository
-      uses: actions/checkout@v2.3.4
-      with:
-        submodules: 'true'
-    - name: Switch to nightly toolchain
-      run: rustup default nightly-x86_64-pc-windows-msvc
-    - uses: actions/checkout@v2
-    - name: Build
-      run: cargo build --verbose --release
-    - name: Run tests
-      run: cargo test --verbose
-    - name: Upload a Build Artifact
-      uses: actions/upload-artifact@v2.2.4
-      with:
-        name: SDFTool on Windows x64
-        path: ./target/release/sdftool.exe
-        
-  build-unix-like:
+  build:
 
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        os: [ubuntu-latest, macOS-latest]
+        os: [ubuntu-latest, macOS-latest, windows-latest, macos-11]
 
     steps:
     - name: Checkout repository
       uses: actions/checkout@v2.3.4
       with:
-        submodules: 'true'
-    - name: Switch to nightly toolchain
-      run: rustup default nightly
+        submodules: 'recursive'
+    - name: Install GCC
+      uses: egor-tensin/setup-gcc@v1
+    - name: Setup Ninja
+      uses: ashutoshvarma/setup-ninja@v1.1
+    - name: Switch to nightly-gnu toolchain
+      run: rustup default nightly-gnu
     - uses: actions/checkout@v2
     - name: Build
       run: cargo build --verbose --release
