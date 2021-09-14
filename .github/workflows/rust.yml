@@ -15,8 +15,10 @@ jobs:
     runs-on: windows-latest
 
     steps:
-    - name: Checkout Submodules
-      run: git submodule update --init
+    - name: Checkout repository
+      uses: actions/checkout@v2
+      with:
+        submodules: 'true'
     - name: Visual Studio shell
       uses: egor-tensin/vs-shell@v2
       with:
