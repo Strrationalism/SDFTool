@@ -60,5 +60,6 @@ fn setup_opencl_sdk() {
 }
 
 fn main() {
+    setup_opencl_sdk();
     println!("cargo:rustc-link-search=./OpenCL-SDK/build/external/OpenCL-ICD-Loader/");
 }
