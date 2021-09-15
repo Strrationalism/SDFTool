@@ -7,6 +7,17 @@ Signed distance field font and image command line tool based on OpenCL.
 
 Run `cargo build --release` in Visual Studio developer command prompt.
 
+### macOS
+
+Run `cargo build --release` in terminal.
+
+### Linux
+
+1. Install OpenCL drivers.
+2. Install OpenCL SDK.
+3. Configure the PATH to make cargo can find `libOpenCL.a`.
+4. Run `cargo build --release` in terminal.
+
 ## Usage
 
 ### Show OpenCL devices

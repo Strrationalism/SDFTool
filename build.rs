@@ -1,19 +1,13 @@
 #![feature(path_try_exists)]
 use std::{fs::*, process::Command};
 
-fn setup_opencl_sdk(target: &str) {
+fn setup_opencl_sdk_for_msvc() {
     if !try_exists("./OpenCL-SDK/build").unwrap() {
         create_dir("./OpenCL-SDK/build").unwrap();
     }
 
     if !try_exists("./OpenCL-SDK/build/Makefile").unwrap() {
-        let build_tool = 
-            if target.contains("msvc") {
-                "NMake Makefiles" 
-            } else { 
-                "Unix Makefiles" 
-            };
-
+        let build_tool = "NMake Makefiles" ;
         let status = 
             Command::new("cmake")
                 .arg("..")
@@ -27,18 +21,12 @@ fn setup_opencl_sdk(target: &str) {
     }
 
 
-    let build_tool = 
-        if target.contains("msvc") {
-            "nmake"
-        } else {
-            "make"
-        };
-
+    let build_tool = "nmake";
     let status = 
         Command::new(build_tool)
             .current_dir("./OpenCL-SDK/build")
             .status()
-            .expect("Cargo build command must run in Visual Studio prompt or NMake/Make not installed.");
+            .expect("Cargo build command must run in Visual Studio prompt or NMake not installed.");
 
     assert!(status.success());
     
@@ -47,6 +35,6 @@ fn setup_opencl_sdk(target: &str) {
 fn main() {
     let project_dir = std::env::var("CARGO_MANIFEST_DIR").unwrap();
     let target = std::env::var("TARGET").unwrap();
-    setup_opencl_sdk(&target);
+    if target.contains("msvc") { setup_opencl_sdk_for_msvc(); }
     println!("cargo:rustc-link-search={}/OpenCL-SDK/build/external/OpenCL-ICD-Loader/", project_dir);
 }

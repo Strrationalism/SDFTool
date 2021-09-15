@@ -4,6 +4,7 @@ mod charset;
 use std::fs::File;
 use clap::{App, SubCommand, Arg};
 use opencl3::*;
+use std::path::Path;
 
 fn main() {
     let search_radius_arg =
@@ -218,22 +219,28 @@ fn symbol(matches: &clap::ArgMatches) {
     let wait_for_read_buffer =
         context.read_buffer(device_id, &sdf, &mut output_buf, &[wait_for_sdf_generate]);
 
-    let output = 
-        File::create(matches
-            .value_of("OUTPUT")
-            .expect("Output path not given.")
-        ).unwrap();
+    wait_for_read_buffer.wait().unwrap();
 
-    let ref mut w = std::io::BufWriter::new(output);
+    save_mono_png(
+        &Path::new(
+                matches
+                    .value_of("OUTPUT")
+                    .expect("Output path not given.")), 
+        sdf_width,
+        sdf_height, 
+        &output_buf);
+}
+
+fn save_mono_png(out: &Path, width: usize, height: usize, pixels: &[u8]) {
+    let output = File::create(out).unwrap();
+    let w = std::io::BufWriter::new(output);
 
     let mut enc = 
-        png::Encoder::new(w, sdf_width as u32, sdf_height as u32);
+        png::Encoder::new(w, width as u32, height as u32);
 
     enc.set_color(png::ColorType::Grayscale);
     enc.set_depth(png::BitDepth::Eight);
 
     let mut writer = enc.write_header().unwrap();
-    wait_for_read_buffer.wait().unwrap();
-
-    writer.write_image_data(&output_buf).unwrap();
+    writer.write_image_data(&pixels).unwrap();
 }
