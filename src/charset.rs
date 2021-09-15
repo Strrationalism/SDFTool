@@ -1,16 +1,40 @@
-use std::collections::BTreeSet;
+use std::{collections::BTreeSet};
 
 pub struct CharsetRequest {
-    pub ansi: bool,
+    pub ascii: bool,
     pub schinese1: bool,
     pub schinese2: bool,
     pub schinese3: bool
 }
 
+impl From<&clap::ArgMatches<'_>> for CharsetRequest {
+    fn from(arg: &clap::ArgMatches) -> Self {
+        let mut x = Self::new();
+
+        if arg.is_present("no-ascii") {
+            x.ascii = false;
+        }
+
+        if arg.is_present("schinese1") {
+            x.schinese1 = true;
+        }
+
+        if arg.is_present("schinese2") {
+            x.schinese2 = true;
+        }
+
+        if arg.is_present("schinese3") {
+            x.schinese3 = true;
+        }
+
+        x
+    }
+}
+
 impl CharsetRequest {
     pub fn new() -> Self {
         Self {
-            ansi: true,
+            ascii: true,
             schinese1: false,
             schinese2: false,
             schinese3: false
@@ -20,7 +44,7 @@ impl CharsetRequest {
     pub fn get_charset(&self) -> BTreeSet<char> {
         let mut s = String::new();
 
-        if self.ansi {
+        if self.ascii {
             s.push_str(include_str!("./charset/ascii.txt"));
         }
 

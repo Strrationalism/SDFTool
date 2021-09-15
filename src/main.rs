@@ -1,10 +1,14 @@
 mod context;
 mod charset;
+mod basic_font_generator;
+mod mono_image;
 
-use std::fs::File;
-use clap::{App, SubCommand, Arg};
+use basic_font_generator::*;
+use clap::{App, Arg, ArgMatches, SubCommand};
 use opencl3::*;
 use std::path::Path;
+
+use crate::mono_image::MonoImage;
 
 fn main() {
     let search_radius_arg =
@@ -56,8 +60,14 @@ fn main() {
                 .about("List OpenCL devices"))
             .subcommand(SubCommand::with_name("font")
                 .about("Create the sdf font")
-                .arg(Arg::with_name("outdir")
-                    .help("Output path"))
+                .arg(Arg::with_name("INPUT")
+                    .help("Input ttf/otf file")
+                    .required(true)
+                    .multiple(false))
+                .arg(Arg::with_name("OUTDIR")
+                    .help("Output path")
+                    .required(true)
+                    .multiple(false))
                 .arg(search_radius_arg)
                 .arg(stride_arg.default_value("64"))
                 .arg(Arg::with_name("no-ascii")
@@ -76,7 +86,11 @@ fn main() {
                     .long("schinese-3")
                     .multiple(false)
                     .help("Generate common standard chinese table 3"))
-                .arg(Arg::with_name("page-width")
+                .arg(Arg::with_name("origin-scale")
+                    .long("origin-scale")
+                    .default_value("4096")
+                    .help("Basic font scale before downsample"))
+                /*.arg(Arg::with_name("page-width")
                     .long("page-width")
                     .default_value("1024")
                     .help("Single page width in pixels"))
@@ -87,15 +101,19 @@ fn main() {
                 .arg(Arg::with_name("margin-x")
                     .long("margin-x")
                     .default_value("0")
-                    .help("Margin X on every character in pixels"))
+                    .help("Margin X on every sdf character in pixels"))
                 .arg(Arg::with_name("margin-y")
                     .long("margin-y")
                     .default_value("0")
-                    .help("Margin Y on every character in pixels"))
-                .arg(Arg::with_name("origin-size")
-                    .long("origin-size")
-                    .default_value("4096")
-                    .help("Basic font size before downsample")));
+                    .help("Margin Y on every sdf character in pixels"))*/
+                .arg(Arg::with_name("padding-x")
+                    .long("padding-x")
+                    .default_value("0")
+                    .help("Padding X on every basic character in pixels"))
+                .arg(Arg::with_name("padding-y")
+                    .long("padding-y")
+                    .default_value("0")
+                    .help("Padding Y on every basic character in pixels")));
 
     if std::env::args().nth(1) == None {
         app.print_help().unwrap();
@@ -110,6 +128,15 @@ fn main() {
     else if let Some(matches) = matches.subcommand_matches("symbol") {
         symbol(matches);
     }
+
+    else if let Some(matches) = matches.subcommand_matches("font") {
+        font(matches);
+    }
+}
+
+fn font(args: &ArgMatches) {
+    let basic_gen = BasicFontGenerator::from(args);
+    basic_gen.generate('あ').save_png(&Path::new("out.png"));
 }
 
 fn show_cl_devices() {
@@ -152,11 +179,11 @@ fn symbol(matches: &clap::ArgMatches) {
         platform::get_platforms()
             .unwrap()
             .into_iter()
-            .nth(matches.value_of("platform-id").unwrap_or("0").parse::<usize>().unwrap())
+            .nth(matches.value_of("platform-id").unwrap().parse::<usize>().unwrap())
             .expect("Can not get the platform.");
 
     let device_id =
-        matches.value_of("device-id").unwrap_or("0").parse::<usize>().unwrap();
+        matches.value_of("device-id").unwrap().parse::<usize>().unwrap();
 
     let context = crate::context::Context::new(first_opencl_platform);
 
@@ -190,13 +217,14 @@ fn symbol(matches: &clap::ArgMatches) {
         panic!("Stride must greate or equals 1.")
     }
 
-    let sdf_width = width / stride;
-    let sdf_height = height / stride;
-    let mut sdf =
+    let mut result_sdf = 
+        MonoImage::new(width / stride, height / stride);
+
+    let mut gpu_sdf =
         memory::Buffer::<u8>::create(
             &context.opencl_context,
             memory::CL_MEM_READ_ONLY,
-            sdf_width * sdf_height,
+            result_sdf.width * result_sdf.height,
             std::ptr::null_mut()
         ).unwrap();
 
@@ -204,43 +232,30 @@ fn symbol(matches: &clap::ArgMatches) {
         context.sdf_generate(
             device_id,
             &edge,
-            &mut sdf,
+            &mut gpu_sdf,
             width,
             height,
-            sdf_width,
-            sdf_height,
+            result_sdf.width,
+            result_sdf.height,
             stride,
             search_radius,
             &[wait_for_edge_detect]
         );
 
-    let mut output_buf: Vec<u8> = vec![0; sdf_width * sdf_height];
+    
 
     let wait_for_read_buffer =
-        context.read_buffer(device_id, &sdf, &mut output_buf, &[wait_for_sdf_generate]);
+        context.read_buffer(
+            device_id, 
+            &gpu_sdf, 
+            &mut result_sdf.pixels, 
+            &[wait_for_sdf_generate]);
 
     wait_for_read_buffer.wait().unwrap();
 
-    save_mono_png(
-        &Path::new(
-                matches
-                    .value_of("OUTPUT")
-                    .expect("Output path not given.")), 
-        sdf_width,
-        sdf_height, 
-        &output_buf);
+    result_sdf.save_png(&Path::new(
+        matches
+            .value_of("OUTPUT")
+            .expect("Output path not given.")));
 }
 
-fn save_mono_png(out: &Path, width: usize, height: usize, pixels: &[u8]) {
-    let output = File::create(out).unwrap();
-    let w = std::io::BufWriter::new(output);
-
-    let mut enc = 
-        png::Encoder::new(w, width as u32, height as u32);
-
-    enc.set_color(png::ColorType::Grayscale);
-    enc.set_depth(png::BitDepth::Eight);
-
-    let mut writer = enc.write_header().unwrap();
-    writer.write_image_data(&pixels).unwrap();
-}

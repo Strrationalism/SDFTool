@@ -74,8 +74,8 @@ impl Context {
     pub fn edge_detect(
         &self, 
         command_queue: usize,
-        src: &memory::Buffer<u8>,       // RGB32
-        edge: &mut memory::Buffer<u8>,   // R8
+        src: &memory::Buffer<u8>,
+        edge: &mut memory::Buffer<u8>,
         width: usize,
         height: usize,
         wait: &[event::Event])
