@@ -7,7 +7,6 @@ use basic_font_generator::*;
 use charset::CharsetRequest;
 use clap::{App, Arg, ArgMatches, SubCommand};
 use opencl3::*;
-use std::ops::Deref;
 use std::path::Path;
 use std::sync::{Arc, Condvar, Mutex};
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -193,7 +192,7 @@ fn font(args: &ArgMatches) {
                                 }
 
                                 {   // Create SDF Task
-                                    if let Some(ch, image) = generate_sdf_task {
+                                    if let Some((ch, image)) = generate_sdf_task {
                                         generate_sdf_task = None;
                                     }
                                 }
@@ -253,6 +252,15 @@ fn font(args: &ArgMatches) {
     for i in workers {
         i.join().unwrap();
     }
+
+    progress_bar
+        .lock()
+        .unwrap()
+        .print_final_info(
+            "Complete", 
+            "", 
+            Color::Green, 
+            Style::Bold);
 }
 
 fn show_cl_devices() {
