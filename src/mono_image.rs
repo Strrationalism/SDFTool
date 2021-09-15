@@ -2,7 +2,7 @@ use std::path::Path;
 use std::fs::File;
 
 pub struct MonoImage {
-    pub pixels: Box<[u8]>,
+    pub pixels: Vec<u8>,
     pub width: usize,
     pub height: usize
 }
@@ -24,7 +24,20 @@ impl MonoImage {
     }
 
     pub fn set_pixel(&mut self, x: usize, y: usize, p: u8) {
-        self.pixels[self.offset(x, y)] = p;
+        let offset = self.offset(x, y);
+        self.pixels[offset] = p;
+    }
+
+    pub fn resize(&mut self, width: usize, height: usize) {
+        self.pixels.resize(width * height, 0);
+        self.width = width;
+        self.height = height;
+    }
+
+    pub fn clear_color(&mut self) {
+        for i in &mut self.pixels {
+            *i = 0;
+        }
     }
 
     pub fn save_png(&self, out: &Path) {

@@ -166,6 +166,7 @@ fn font(args: &ArgMatches) {
             .map(crate::context::Context::new)
             .flat_map(|c| {
                 let command_queues = c.command_queue_count();
+                let context = Arc::new(c);
                 (0..command_queues)
                     .into_iter()
                     .map(|queue_id| {
@@ -175,9 +176,17 @@ fn font(args: &ArgMatches) {
                         let cvar = cvar.clone();
                         let task = task.clone();
                         thread::spawn(move ||{
-                            let mut generate_sdf_task = None;
-                            let mut generate_basic_task = None;
+                            let mut generate_sdf_task: Option<char> = None;
+                            let mut generate_basic_task: Option<char> = None;
 
+                            let mut basic_gen_buf = MonoImage::new(0, 0);
+                            let mut basic_load_to_ocl_buf = MonoImage::new(0, 0);
+
+                            //let mut ocl_buf = None;
+                            let mut ocl_buf_len = 0;
+
+                            let mut str_buf = String::new();
+                            
                             loop {
 
                                 {   // Test break condition
@@ -192,7 +201,7 @@ fn font(args: &ArgMatches) {
                                 }
 
                                 {   // Create SDF Task
-                                    if let Some((ch, image)) = generate_sdf_task {
+                                    if let Some(ch) = generate_sdf_task {
                                         generate_sdf_task = None;
                                     }
                                 }
@@ -200,8 +209,10 @@ fn font(args: &ArgMatches) {
                                 {   // Generate Basic Task
                                     if let Some(task) = generate_basic_task {
                                         generate_basic_task = None;
-                                        if let Some(image) = basic_gen.generate(task) {
-                                            generate_sdf_task = Some((task, image));
+                                        str_buf.clear();
+                                        str_buf.push(task);
+                                        if basic_gen.generate(&str_buf, &mut basic_gen_buf) {
+                                            generate_sdf_task = Some(task);
                                         } else {
                                             progress_bar
                                                 .lock()
@@ -231,7 +242,13 @@ fn font(args: &ArgMatches) {
                                 }
 
                                 {   // Send Result
+                                    if let Some(cha) = generate_sdf_task {
+                                        basic_gen_buf.save_png(
+                                            &Path::new(&format!("out/{}.png", cha as i32)));
+                                    }
                                 }
+
+                                std::mem::swap(&mut basic_gen_buf, &mut basic_load_to_ocl_buf);
                             }
                         })
                     })

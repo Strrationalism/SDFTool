@@ -13,40 +13,43 @@ pub struct BasicFontGenerator {
 }
 
 impl BasicFontGenerator {
-    pub fn generate(&self, c: char) -> Option<MonoImage> {
-        let mut s = String::new();
-        s.push(c);
+    pub fn generate(&self, c: &str, buffer: &mut MonoImage) -> bool {
+        assert!(c.chars().nth(0).is_some() && c.chars().nth(1).is_none());
         let (padding_x, padding_y) = self.padding;
         
         let glyph = 
             self.font.layout(
-                &s, 
+                c, 
                 self.origin_scale, 
-                point(
-                        padding_x as f32, 
-                        padding_y  as f32+ self.v_metrics.ascent))
+                point(0.0, self.v_metrics.ascent))
             .nth(0)
             .unwrap();
+
+        let bounding_box = glyph.pixel_bounding_box();
+
+        if bounding_box.is_none() { return false; }
+
+        let bounding_box = bounding_box.unwrap();
 
         let glyph_height = 
             (self.v_metrics.ascent - self.v_metrics.descent).ceil() as usize;
 
         let glyph_width =
-            glyph.pixel_bounding_box()?.max.x - glyph.pixel_bounding_box().unwrap().min.x;
+            bounding_box.max.x - bounding_box.min.x;
 
-        let mut image =
-            MonoImage::new(
-                glyph_width as usize + padding_x * 2, 
-                glyph_height as usize + padding_y * 2);
+        buffer.clear_color();
+        buffer.resize(
+            glyph_width as usize + padding_x * 2, 
+            glyph_height as usize + padding_y * 2);
 
         glyph.draw(|x, y, v|{
-            image.set_pixel(
-                x as usize + padding_x, 
-                y as usize + padding_y, 
+            buffer.set_pixel(
+                (x as i32 + padding_x as i32) as usize, 
+                (y as i32 + padding_y as i32 + bounding_box.min.y) as usize, 
                 if v >= 0.5 { 255 } else { 0 });
         });
 
-        Some(image)
+        true
     }
 }
 
