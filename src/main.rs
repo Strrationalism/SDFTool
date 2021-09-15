@@ -152,7 +152,7 @@ fn show_cl_devices() {
             platform_id, 
             platform.name().expect("Can not get platform."));
 
-        platform_id = platform_id + 1;
+        platform_id += 1;
 
         let devices = 
             platform.get_devices(device::CL_DEVICE_TYPE_ALL)
@@ -169,7 +169,7 @@ fn show_cl_devices() {
                 device::device_type_text(
                     device.dev_type().unwrap()));
 
-            device_id = device_id + 1;
+            device_id += 1;
         }
     }
 }
