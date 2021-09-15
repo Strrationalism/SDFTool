@@ -14,7 +14,7 @@ Run `cargo build --release` in terminal.
 ### Linux
 
 1. Install OpenCL drivers.
-2. Install OpenCL SDK.
+2. Install Intel/AMD OpenCL SDK.
 3. Configure the PATH to make cargo can find `libOpenCL.a`.
 4. Run `cargo build --release` in terminal.
 
