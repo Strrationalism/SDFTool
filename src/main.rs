@@ -4,9 +4,16 @@ mod basic_font_generator;
 mod mono_image;
 
 use basic_font_generator::*;
+use charset::CharsetRequest;
 use clap::{App, Arg, ArgMatches, SubCommand};
 use opencl3::*;
+use std::ops::Deref;
 use std::path::Path;
+use std::sync::{Arc, Condvar, Mutex};
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::thread;
+use progress_bar::progress_bar::ProgressBar;
+use progress_bar::color::{Color, Style};
 
 use crate::mono_image::MonoImage;
 
@@ -135,8 +142,117 @@ fn main() {
 }
 
 fn font(args: &ArgMatches) {
-    let basic_gen = BasicFontGenerator::from(args);
-    basic_gen.generate('あ').save_png(&Path::new("out.png"));
+    let basic_gen = Arc::new(BasicFontGenerator::from(args));
+    let charset = CharsetRequest::from_args(args).get_charset();
+    
+    let progress_bar = Arc::new(Mutex::new(ProgressBar::new(charset.len())));
+
+    {
+        progress_bar
+            .lock()
+            .unwrap()
+            .set_action("Rendering", Color::Blue, Style::Bold);
+    }
+
+    let task = Arc::new(Mutex::new(None));
+
+    let run = Arc::new(AtomicBool::new(true));
+
+    let cvar = Arc::new(Condvar::new());
+
+    let workers: Vec<_> =
+        platform::get_platforms()
+            .unwrap()
+            .into_iter()
+            .map(crate::context::Context::new)
+            .flat_map(|c| {
+                let command_queues = c.command_queue_count();
+                (0..command_queues)
+                    .into_iter()
+                    .map(|queue_id| {
+                        let progress_bar = progress_bar.clone();
+                        let basic_gen = basic_gen.clone();
+                        let run = run.clone();
+                        let cvar = cvar.clone();
+                        let task = task.clone();
+                        thread::spawn(move ||{
+                            let mut generate_sdf_task = None;
+                            let mut generate_basic_task = None;
+
+                            loop {
+
+                                {   // Test break condition
+                                    let run =
+                                        run.load(Ordering::Relaxed)
+                                        || generate_basic_task.is_some()
+                                        || generate_sdf_task.is_some();
+
+                                    if !run {
+                                        break;
+                                    }
+                                }
+
+                                {   // Create SDF Task
+                                    if let Some(ch, image) = generate_sdf_task {
+                                        generate_sdf_task = None;
+                                    }
+                                }
+
+                                {   // Generate Basic Task
+                                    if let Some(task) = generate_basic_task {
+                                        generate_basic_task = None;
+                                        if let Some(image) = basic_gen.generate(task) {
+                                            generate_sdf_task = Some((task, image));
+                                        } else {
+                                            progress_bar
+                                                .lock()
+                                                .unwrap()
+                                                .print_info(
+                                                    "Warning", 
+                                                    &format!("Can not render {}", task), 
+                                                    Color::Yellow, 
+                                                    Style::Bold);
+                                        }
+                                    }
+                                }
+
+                                
+                                {   // Get next task
+                                    let mut task = task.lock().unwrap();
+                                    if let Some(ch) = *task {
+                                        generate_basic_task = Some(ch);
+                                        *task = None;
+
+                                        progress_bar
+                                            .lock()
+                                            .unwrap()
+                                            .inc();
+                                    }
+                                    cvar.notify_one();
+                                }
+
+                                {   // Send Result
+                                }
+                            }
+                        })
+                    })
+            }).collect();
+
+    
+    for i in charset {
+        let mut task = task.lock().unwrap();
+        while task.is_some() {
+            task = cvar.wait(task).unwrap();
+        }
+
+        *task = Some(i);
+    }
+
+    run.store(false, Ordering::Release);
+
+    for i in workers {
+        i.join().unwrap();
+    }
 }
 
 fn show_cl_devices() {

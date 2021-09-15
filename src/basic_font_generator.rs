@@ -13,7 +13,7 @@ pub struct BasicFontGenerator {
 }
 
 impl BasicFontGenerator {
-    pub fn generate(&self, c: char) -> MonoImage {
+    pub fn generate(&self, c: char) -> Option<MonoImage> {
         let mut s = String::new();
         s.push(c);
         let (padding_x, padding_y) = self.padding;
@@ -32,7 +32,7 @@ impl BasicFontGenerator {
             (self.v_metrics.ascent - self.v_metrics.descent).ceil() as usize;
 
         let glyph_width =
-            glyph.pixel_bounding_box().unwrap().max.x - glyph.pixel_bounding_box().unwrap().min.x;
+            glyph.pixel_bounding_box()?.max.x - glyph.pixel_bounding_box().unwrap().min.x;
 
         let mut image =
             MonoImage::new(
@@ -46,7 +46,7 @@ impl BasicFontGenerator {
                 if v >= 0.5 { 255 } else { 0 });
         });
 
-        image
+        Some(image)
     }
 }
 

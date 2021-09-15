@@ -7,8 +7,8 @@ pub struct CharsetRequest {
     pub schinese3: bool
 }
 
-impl From<&clap::ArgMatches<'_>> for CharsetRequest {
-    fn from(arg: &clap::ArgMatches) -> Self {
+impl CharsetRequest {
+    pub fn from_args(arg: &clap::ArgMatches) -> Self {
         let mut x = Self::new();
 
         if arg.is_present("no-ascii") {
@@ -29,9 +29,7 @@ impl From<&clap::ArgMatches<'_>> for CharsetRequest {
 
         x
     }
-}
 
-impl CharsetRequest {
     pub fn new() -> Self {
         Self {
             ascii: true,

@@ -67,7 +67,7 @@ impl Context {
         }
     }
 
-    pub fn _command_queue_count(&self) -> usize {
+    pub fn command_queue_count(&self) -> usize {
         self.command_queues.len()
     }
 
