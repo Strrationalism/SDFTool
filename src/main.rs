@@ -75,7 +75,7 @@ fn main() {
                     .help("Output path")
                     .required(true)
                     .multiple(false))
-                .arg(search_radius_arg.default_value("128"))
+                .arg(search_radius_arg.default_value("64"))
                 .arg(stride_arg.default_value("8"))
                 .arg(Arg::with_name("no-ascii")
                     .long("no-ascii")
@@ -115,11 +115,11 @@ fn main() {
                     .help("Margin Y on every sdf character in pixels"))*/
                 .arg(Arg::with_name("padding-x")
                     .long("padding-x")
-                    .default_value("128")
+                    .default_value("64")
                     .help("Padding X on every basic character in pixels"))
                 .arg(Arg::with_name("padding-y")
                     .long("padding-y")
-                    .default_value("128")
+                    .default_value("64")
                     .help("Padding Y on every basic character in pixels")));
 
     if std::env::args().nth(1) == None {
@@ -346,7 +346,7 @@ fn font(args: &ArgMatches) {
                                         &[event]).wait().unwrap();
                                     
                                     /*result_buf.save_png(
-                                        &Path::new(&format!("out/{}.png", ch as i32)));*/
+                                        &Path::new(&format!("out/{}.png", _ch as i32)));*/
                                 }
                             }
 
@@ -358,6 +358,21 @@ fn font(args: &ArgMatches) {
                 threads
             }).collect();
 
+    {
+        let ref mut p = progress_bar.lock().unwrap();
+
+        p.print_info(
+            "Info", 
+            &format!("Stride: {}", stride), 
+            Color::Green, 
+            Style::Bold);
+
+        p.print_info(
+            "Info", 
+            &format!("Search Radius: {}", search_radius), 
+            Color::Green, 
+            Style::Bold);
+    }
     
     for i in charset {
         let mut task = task.lock().unwrap();
