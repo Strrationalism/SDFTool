@@ -75,7 +75,7 @@ fn main() {
                     .help("Output path")
                     .required(true)
                     .multiple(false))
-                .arg(search_radius_arg.default_value("64"))
+                .arg(search_radius_arg.default_value("24"))
                 .arg(stride_arg.default_value("8"))
                 .arg(Arg::with_name("no-ascii")
                     .long("no-ascii")
@@ -95,7 +95,7 @@ fn main() {
                     .help("Generate common standard chinese table 3"))
                 .arg(Arg::with_name("origin-scale")
                     .long("origin-scale")
-                    .default_value("512")
+                    .default_value("384")
                     .help("Basic font scale before downsample"))
                 /*.arg(Arg::with_name("page-width")
                     .long("page-width")
@@ -115,11 +115,11 @@ fn main() {
                     .help("Margin Y on every sdf character in pixels"))*/
                 .arg(Arg::with_name("padding-x")
                     .long("padding-x")
-                    .default_value("64")
+                    .default_value("24")
                     .help("Padding X on every basic character in pixels"))
                 .arg(Arg::with_name("padding-y")
                     .long("padding-y")
-                    .default_value("64")
+                    .default_value("24")
                     .help("Padding Y on every basic character in pixels")));
 
     if std::env::args().nth(1) == None {
@@ -144,6 +144,7 @@ fn main() {
 fn font(args: &ArgMatches) {
     let basic_gen = Arc::new(BasicFontGenerator::from(args));
     let charset = CharsetRequest::from_args(args).get_charset();
+    //let charset = vec!['草', 'a', 'A', '0', ','];
     
     let progress_bar = Arc::new(Mutex::new(ProgressBar::new(charset.len())));
 
@@ -385,6 +386,15 @@ fn font(args: &ArgMatches) {
         drop(task);
 
         progress_bar.lock().unwrap().inc();
+    }
+
+    loop {
+        let mut task = task.lock().unwrap();
+        if task.is_some() {
+            task = cvar.wait(task).unwrap();
+        } else {
+            break;
+        }
     }
 
     run.store(false, Ordering::Release);
