@@ -75,8 +75,8 @@ fn main() {
                     .help("Output path")
                     .required(true)
                     .multiple(false))
-                .arg(search_radius_arg.default_value("512"))
-                .arg(stride_arg.default_value("24"))
+                .arg(search_radius_arg.default_value("128"))
+                .arg(stride_arg.default_value("8"))
                 .arg(Arg::with_name("no-ascii")
                     .long("no-ascii")
                     .multiple(false)
@@ -95,7 +95,7 @@ fn main() {
                     .help("Generate common standard chinese table 3"))
                 .arg(Arg::with_name("origin-scale")
                     .long("origin-scale")
-                    .default_value("2048")
+                    .default_value("512")
                     .help("Basic font scale before downsample"))
                 /*.arg(Arg::with_name("page-width")
                     .long("page-width")
@@ -115,11 +115,11 @@ fn main() {
                     .help("Margin Y on every sdf character in pixels"))*/
                 .arg(Arg::with_name("padding-x")
                     .long("padding-x")
-                    .default_value("512")
+                    .default_value("128")
                     .help("Padding X on every basic character in pixels"))
                 .arg(Arg::with_name("padding-y")
                     .long("padding-y")
-                    .default_value("512")
+                    .default_value("128")
                     .help("Padding Y on every basic character in pixels")));
 
     if std::env::args().nth(1) == None {
@@ -151,7 +151,7 @@ fn font(args: &ArgMatches) {
         progress_bar
             .lock()
             .unwrap()
-            .set_action("Rendering", Color::Blue, Style::Bold);
+            .set_action("Rendering", Color::LightCyan, Style::Bold);
     }
 
     let task = Arc::new(Mutex::new(None));
@@ -189,12 +189,21 @@ fn font(args: &ArgMatches) {
                     let cvar = cvar.clone();
                     let task = task.clone();
                     let device_ptr = device_id as usize;
-                    let platform = platform.clone();
                     
                     threads.push(thread::spawn(move ||{
                         let context = Context::new(
-                            platform, 
                             device_ptr as *mut core::ffi::c_void);
+
+                        {
+                            progress_bar.lock().unwrap().print_info(
+                                "Device", 
+                                &format!(
+                                    "{}", 
+                                    context.device_name),
+                                Color::Green,
+                                Style::Bold
+                            );
+                        }
                         
 
                         let mut generate_sdf_task: Option<char> = None;
@@ -329,15 +338,15 @@ fn font(args: &ArgMatches) {
                             }
 
                             {   // Send Result
-                                if let Some((ch, event, sdf_width, sdf_height)) = sdf_task {
+                                if let Some((_ch, event, sdf_width, sdf_height)) = sdf_task {
                                     result_buf.resize(sdf_width, sdf_height);
                                     context.read_buffer_to_cpu(
                                         ocl_buf_result.as_ref().unwrap(), 
                                         &mut result_buf.pixels, 
                                         &[event]).wait().unwrap();
                                     
-                                    result_buf.save_png(
-                                        &Path::new(&format!("out/{}.png", ch as i32)));
+                                    /*result_buf.save_png(
+                                        &Path::new(&format!("out/{}.png", ch as i32)));*/
                                 }
                             }
 
@@ -427,7 +436,6 @@ fn symbol(matches: &clap::ArgMatches) {
 
     let context = 
         crate::context::Context::new(
-            platform,
             platform
                 .get_devices(device::CL_DEVICE_TYPE_ALL)
                 .unwrap()

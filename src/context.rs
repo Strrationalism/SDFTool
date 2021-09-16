@@ -5,19 +5,17 @@ pub struct Context {
     edge_detect: kernel::Kernel,
     sdf_generate: kernel::Kernel,
     rgba_to_grayscale: kernel::Kernel,
-    command_queue: command_queue::CommandQueue
+    command_queue: command_queue::CommandQueue,
+    pub device_name: String
 }
 
 impl Context {
-    pub fn new(platform: platform::Platform, device_id: *mut core::ffi::c_void) -> Self {
-        let devices = 
-            platform
-                .get_devices(device::CL_DEVICE_TYPE_ALL)
-                .expect("Can not get devices from the platform.");
+    pub fn new(device_id: *mut core::ffi::c_void) -> Self {
+        let devices = [device::Device::new(device_id)];
 
         let opencl_context =
             context::Context::from_devices(
-                &devices,
+                &[device_id],
                 &vec![], 
                 None, 
                 std::ptr::null_mut())
@@ -30,12 +28,10 @@ impl Context {
                 .unwrap();
 
 
-        if let Result::Err(_) = program.build(&devices, "") {
+        if let Result::Err(_) = program.build(&[device_id], "") {
             println!("= Program build error =");
-            for i in &devices {
-                let build_log = program.get_build_log(*i).unwrap();
-                println!("{}", build_log);
-            }
+            let build_log = program.get_build_log(device_id).unwrap();
+            println!("{}", build_log);
         }
 
         let edge_detect = 
@@ -59,7 +55,8 @@ impl Context {
             edge_detect,
             command_queue,
             sdf_generate,
-            rgba_to_grayscale
+            rgba_to_grayscale,
+            device_name: devices[0].name().unwrap()
         }
     }
 
