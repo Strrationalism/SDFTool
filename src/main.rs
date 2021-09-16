@@ -6,6 +6,7 @@ mod mono_image;
 use basic_font_generator::*;
 use charset::CharsetRequest;
 use clap::{App, Arg, ArgMatches, SubCommand};
+use context::Context;
 use opencl3::*;
 use std::path::Path;
 use std::sync::{Arc, Condvar, Mutex};
@@ -74,8 +75,8 @@ fn main() {
                     .help("Output path")
                     .required(true)
                     .multiple(false))
-                .arg(search_radius_arg)
-                .arg(stride_arg.default_value("64"))
+                .arg(search_radius_arg.default_value("512"))
+                .arg(stride_arg.default_value("24"))
                 .arg(Arg::with_name("no-ascii")
                     .long("no-ascii")
                     .multiple(false)
@@ -94,7 +95,7 @@ fn main() {
                     .help("Generate common standard chinese table 3"))
                 .arg(Arg::with_name("origin-scale")
                     .long("origin-scale")
-                    .default_value("4096")
+                    .default_value("2048")
                     .help("Basic font scale before downsample"))
                 /*.arg(Arg::with_name("page-width")
                     .long("page-width")
@@ -114,11 +115,11 @@ fn main() {
                     .help("Margin Y on every sdf character in pixels"))*/
                 .arg(Arg::with_name("padding-x")
                     .long("padding-x")
-                    .default_value("0")
+                    .default_value("512")
                     .help("Padding X on every basic character in pixels"))
                 .arg(Arg::with_name("padding-y")
                     .long("padding-y")
-                    .default_value("0")
+                    .default_value("512")
                     .help("Padding Y on every basic character in pixels")));
 
     if std::env::args().nth(1) == None {
@@ -159,99 +160,193 @@ fn font(args: &ArgMatches) {
 
     let cvar = Arc::new(Condvar::new());
 
+    let stride: usize = 
+        args.value_of("stride").unwrap().parse().unwrap();
+
+    let search_radius: usize = 
+        args.value_of("search-radius").unwrap().parse().unwrap();
+
+    if stride <= 0 {
+        panic!("Stride must greate or equals 1.")
+    }
+
     let workers: Vec<_> =
         platform::get_platforms()
             .unwrap()
             .into_iter()
-            .map(crate::context::Context::new)
-            .flat_map(|c| {
-                let command_queues = c.command_queue_count();
-                let context = Arc::new(c);
-                (0..command_queues)
-                    .into_iter()
-                    .map(|queue_id| {
-                        let progress_bar = progress_bar.clone();
-                        let basic_gen = basic_gen.clone();
-                        let run = run.clone();
-                        let cvar = cvar.clone();
-                        let task = task.clone();
-                        thread::spawn(move ||{
-                            let mut generate_sdf_task: Option<char> = None;
-                            let mut generate_basic_task: Option<char> = None;
+            .flat_map(|platform| {
+                let devices =
+                    platform
+                        .get_devices(device::CL_DEVICE_TYPE_ALL)
+                        .unwrap()
+                        .into_iter();
+                
+                let mut threads = Vec::new();
+                for device_id in devices {
+                    let progress_bar = progress_bar.clone();
+                    let basic_gen = basic_gen.clone();
+                    let run = run.clone();
+                    let cvar = cvar.clone();
+                    let task = task.clone();
+                    let device_ptr = device_id as usize;
+                    let platform = platform.clone();
+                    
+                    threads.push(thread::spawn(move ||{
+                        let context = Context::new(
+                            platform, 
+                            device_ptr as *mut core::ffi::c_void);
+                        
 
-                            let mut basic_gen_buf = MonoImage::new(0, 0);
-                            let mut basic_load_to_ocl_buf = MonoImage::new(0, 0);
+                        let mut generate_sdf_task: Option<char> = None;
+                        let mut generate_basic_task: Option<char> = None;
 
-                            //let mut ocl_buf = None;
-                            let mut ocl_buf_len = 0;
+                        let mut basic_gen_buf = MonoImage::new(0, 0);
+                        let mut basic_load_to_ocl_buf = MonoImage::new(0, 0);
+                        let mut result_buf = MonoImage::new(0, 0);
 
-                            let mut str_buf = String::new();
+                        let mut ocl_buf_load = None;
+                        let mut ocl_buf_edge = None;
+                        let mut ocl_buf_result = None;
+                        let mut ocl_buf_len: usize = 0;
+
+                        let mut str_buf = String::new();
+                        
+                        loop {
+
+                            {   // Test break condition
+                                let run =
+                                    run.load(Ordering::Relaxed)
+                                    || generate_basic_task.is_some()
+                                    || generate_sdf_task.is_some();
+
+                                if !run {
+                                    break;
+                                }
+                            }
+
+                            // Create SDF Task
+                            let sdf_task =  
+                                if let Some(ch) = generate_sdf_task {
+                                    generate_sdf_task = None;
+
+                                    let width = basic_load_to_ocl_buf.width;
+                                    let height = basic_load_to_ocl_buf.height;
+
+                                    let buffer_size = width * height;
+
+                                    if ocl_buf_load.is_none() || ocl_buf_len < buffer_size {
+                                        ocl_buf_len = buffer_size;
+                                        ocl_buf_load = 
+                                            Some(memory::Buffer::<u8>::create(
+                                                &context.opencl_context,
+                                                memory::CL_MEM_WRITE_ONLY,
+                                                ocl_buf_len,
+                                                std::ptr::null_mut()
+                                            ).unwrap());
+
+                                        ocl_buf_edge = 
+                                            Some(memory::Buffer::<u8>::create(
+                                                &context.opencl_context,
+                                                0,
+                                                ocl_buf_len,
+                                                std::ptr::null_mut()
+                                            ).unwrap());
+
+                                        ocl_buf_result = 
+                                            Some(memory::Buffer::<u8>::create(
+                                                &context.opencl_context,
+                                                memory::CL_MEM_READ_ONLY,
+                                                ocl_buf_len / stride / stride,
+                                                std::ptr::null_mut()
+                                            ).unwrap());
+                                    }
+
+                                    let wait_load = 
+                                        context.write_buffer_to_cl(
+                                            &basic_load_to_ocl_buf.pixels, 
+                                            ocl_buf_load.as_mut().unwrap(), 
+                                            &[]);
+
+                                    let wait_edge_detect =
+                                        context.edge_detect(
+                                            ocl_buf_load.as_ref().unwrap(),
+                                            ocl_buf_edge.as_mut().unwrap(),
+                                            width,
+                                            height,
+                                            &[wait_load]
+                                        );
+
+                                    let sdf_width = width / stride;
+                                    let sdf_height = height / stride;
+
+                                    let wait_sdf_generate =
+                                        context.sdf_generate(
+                                            ocl_buf_edge.as_ref().unwrap(),
+                                            ocl_buf_result.as_mut().unwrap(),
+                                            width,
+                                            height,
+                                            sdf_width,
+                                            sdf_height,
+                                            stride,
+                                            search_radius,
+                                            &[wait_edge_detect]
+                                        );
+
+                                    Some((ch, wait_sdf_generate, sdf_width, sdf_height))
+                                } else {
+                                    None
+                                };
                             
-                            loop {
 
-                                {   // Test break condition
-                                    let run =
-                                        run.load(Ordering::Relaxed)
-                                        || generate_basic_task.is_some()
-                                        || generate_sdf_task.is_some();
-
-                                    if !run {
-                                        break;
-                                    }
-                                }
-
-                                {   // Create SDF Task
-                                    if let Some(ch) = generate_sdf_task {
-                                        generate_sdf_task = None;
-                                    }
-                                }
-
-                                {   // Generate Basic Task
-                                    if let Some(task) = generate_basic_task {
-                                        generate_basic_task = None;
-                                        str_buf.clear();
-                                        str_buf.push(task);
-                                        if basic_gen.generate(&str_buf, &mut basic_gen_buf) {
-                                            generate_sdf_task = Some(task);
-                                        } else {
-                                            progress_bar
-                                                .lock()
-                                                .unwrap()
-                                                .print_info(
-                                                    "Warning", 
-                                                    &format!("Can not render {}", task), 
-                                                    Color::Yellow, 
-                                                    Style::Bold);
-                                        }
-                                    }
-                                }
-
-                                
-                                {   // Get next task
-                                    let mut task = task.lock().unwrap();
-                                    if let Some(ch) = *task {
-                                        generate_basic_task = Some(ch);
-                                        *task = None;
-
+                            {   // Generate Basic Task
+                                if let Some(task) = generate_basic_task {
+                                    generate_basic_task = None;
+                                    str_buf.clear();
+                                    str_buf.push(task);
+                                    if basic_gen.generate(&str_buf, &mut basic_gen_buf) {
+                                        generate_sdf_task = Some(task);
+                                    } else {
                                         progress_bar
                                             .lock()
                                             .unwrap()
-                                            .inc();
-                                    }
-                                    cvar.notify_one();
-                                }
-
-                                {   // Send Result
-                                    if let Some(cha) = generate_sdf_task {
-                                        basic_gen_buf.save_png(
-                                            &Path::new(&format!("out/{}.png", cha as i32)));
+                                            .print_info(
+                                                "Warning", 
+                                                &format!("Can not render {}", task), 
+                                                Color::Yellow, 
+                                                Style::Bold);
                                     }
                                 }
-
-                                std::mem::swap(&mut basic_gen_buf, &mut basic_load_to_ocl_buf);
                             }
-                        })
-                    })
+
+                            
+                            {   // Get next task
+                                let mut task = task.lock().unwrap();
+                                if let Some(ch) = *task {
+                                    generate_basic_task = Some(ch);
+                                    *task = None;
+                                }
+                                cvar.notify_one();
+                            }
+
+                            {   // Send Result
+                                if let Some((ch, event, sdf_width, sdf_height)) = sdf_task {
+                                    result_buf.resize(sdf_width, sdf_height);
+                                    context.read_buffer_to_cpu(
+                                        ocl_buf_result.as_ref().unwrap(), 
+                                        &mut result_buf.pixels, 
+                                        &[event]).wait().unwrap();
+                                    
+                                    result_buf.save_png(
+                                        &Path::new(&format!("out/{}.png", ch as i32)));
+                                }
+                            }
+
+                            std::mem::swap(&mut basic_gen_buf, &mut basic_load_to_ocl_buf);
+                        }
+                    }));
+                }
+
+                threads
             }).collect();
 
     
@@ -262,6 +357,10 @@ fn font(args: &ArgMatches) {
         }
 
         *task = Some(i);
+
+        drop(task);
+
+        progress_bar.lock().unwrap().inc();
     }
 
     run.store(false, Ordering::Release);
@@ -316,7 +415,7 @@ fn show_cl_devices() {
 }
 
 fn symbol(matches: &clap::ArgMatches) {
-    let first_opencl_platform =
+    let platform =
         platform::get_platforms()
             .unwrap()
             .into_iter()
@@ -326,10 +425,18 @@ fn symbol(matches: &clap::ArgMatches) {
     let device_id =
         matches.value_of("device-id").unwrap().parse::<usize>().unwrap();
 
-    let context = crate::context::Context::new(first_opencl_platform);
+    let context = 
+        crate::context::Context::new(
+            platform,
+            platform
+                .get_devices(device::CL_DEVICE_TYPE_ALL)
+                .unwrap()
+                .into_iter()
+                .nth(device_id)
+                .unwrap());
 
     let (image, width, height) =
-        context.load_png(device_id, matches.value_of("INPUT").expect("No input png given."));
+        context.load_png(matches.value_of("INPUT").expect("No input png given."));
 
     let mut edge = 
         memory::Buffer::<u8>::create(
@@ -341,7 +448,6 @@ fn symbol(matches: &clap::ArgMatches) {
 
     let wait_for_edge_detect =
         context.edge_detect(
-            device_id, 
             &image, 
             &mut edge, 
             width, 
@@ -371,7 +477,6 @@ fn symbol(matches: &clap::ArgMatches) {
 
     let wait_for_sdf_generate =
         context.sdf_generate(
-            device_id,
             &edge,
             &mut gpu_sdf,
             width,
@@ -386,8 +491,7 @@ fn symbol(matches: &clap::ArgMatches) {
     
 
     let wait_for_read_buffer =
-        context.read_buffer(
-            device_id, 
+        context.read_buffer_to_cpu(
             &gpu_sdf, 
             &mut result_sdf.pixels, 
             &[wait_for_sdf_generate]);

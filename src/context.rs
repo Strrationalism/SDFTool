@@ -5,11 +5,11 @@ pub struct Context {
     edge_detect: kernel::Kernel,
     sdf_generate: kernel::Kernel,
     rgba_to_grayscale: kernel::Kernel,
-    command_queues: Vec<command_queue::CommandQueue>
+    command_queue: command_queue::CommandQueue
 }
 
 impl Context {
-    pub fn new(platform: platform::Platform) -> Self {
+    pub fn new(platform: platform::Platform, device_id: *mut core::ffi::c_void) -> Self {
         let devices = 
             platform
                 .get_devices(device::CL_DEVICE_TYPE_ALL)
@@ -47,33 +47,24 @@ impl Context {
         let rgba_to_grayscale =
             kernel::Kernel::create(&program, "rgba_to_grayscale").unwrap();
 
-        let command_queues =
-            devices
-                .iter()
-                .map(|x| command_queue::CommandQueue::create(
-                        &opencl_context, 
-                        *x, 
-                        command_queue::CL_QUEUE_OUT_OF_ORDER_EXEC_MODE_ENABLE
-                    ).expect("Can not create command queue.")
-                )
-                .collect();
+        let command_queue = 
+            command_queue::CommandQueue::create(
+                &opencl_context, 
+                device_id, 
+                command_queue::CL_QUEUE_OUT_OF_ORDER_EXEC_MODE_ENABLE
+            ).expect("Can not create command queue.");
 
         Self {
             opencl_context,
             edge_detect,
-            command_queues,
+            command_queue,
             sdf_generate,
             rgba_to_grayscale
         }
     }
 
-    pub fn command_queue_count(&self) -> usize {
-        self.command_queues.len()
-    }
-
     pub fn edge_detect(
         &self, 
-        command_queue: usize,
         src: &memory::Buffer<u8>,
         edge: &mut memory::Buffer<u8>,
         width: usize,
@@ -95,13 +86,12 @@ impl Context {
         }
 
         exe
-            .enqueue_nd_range(&self.command_queues[command_queue])
+            .enqueue_nd_range(&self.command_queue)
             .unwrap()
     }
 
     pub fn sdf_generate(
         &self,
-        command_queue: usize,
         edge: &memory::Buffer<u8>,
         sdf: &mut memory::Buffer<u8>,
         edge_width: usize,
@@ -130,12 +120,11 @@ impl Context {
             exe.set_wait_event(i);
         }
 
-        exe.enqueue_nd_range(&self.command_queues[command_queue]).unwrap()
+        exe.enqueue_nd_range(&self.command_queue).unwrap()
     }
 
-    pub fn write_buffer<T>(
+    pub fn write_buffer_to_cl<T>(
         &self,
-        command_queue: usize,
         src: &[T],
         dst: &mut memory::Buffer<T>,
         wait: &[event::Event])
@@ -147,13 +136,12 @@ impl Context {
                 .map(|x| x.get())
                 .collect();
 
-        self.command_queues[command_queue].enqueue_write_buffer(
+        self.command_queue.enqueue_write_buffer(
             dst, types::CL_NON_BLOCKING, 0, src, &wait).unwrap()
     }
 
-    pub fn read_buffer<T>(
+    pub fn read_buffer_to_cpu<T>(
         &self,
-        command_queue: usize,
         src: &memory::Buffer<T>,
         dst: &mut [T],
         wait: &[event::Event])
@@ -165,14 +153,13 @@ impl Context {
                 .map(|x| x.get())
                 .collect();
 
-        self.command_queues[command_queue].enqueue_read_buffer(
+        self.command_queue.enqueue_read_buffer(
             src, types::CL_NON_BLOCKING, 0, dst, &wait
         ).unwrap()
     }
 
     pub fn load_png(
         &self,
-        command_queue: usize,
         png: &str)
         -> (memory::Buffer<u8>, usize, usize)
     {
@@ -208,7 +195,7 @@ impl Context {
                 std::ptr::null_mut()
             ).unwrap();
 
-        self.write_buffer(command_queue, &image_bytes, &mut input_image, &[]).wait().unwrap();
+        self.write_buffer_to_cl(&image_bytes, &mut input_image, &[]).wait().unwrap();
 
         let convert_image = |stride| {
             let size = (frame_info.width * frame_info.height) as usize;
@@ -227,7 +214,7 @@ impl Context {
                 .set_arg(&mut gray_scale)
                 .set_arg(&stride)
                 .set_global_work_sizes(&[size])
-                .enqueue_nd_range(&self.command_queues[command_queue])
+                .enqueue_nd_range(&self.command_queue)
                 .unwrap()
                 .wait()
                 .unwrap();
@@ -255,8 +242,6 @@ impl Context {
 
 impl Drop for Context {
     fn drop(&mut self) {
-        for i in &self.command_queues {
-            i.finish().unwrap();
-        }
+        self.command_queue.finish().unwrap();
     }
 }
