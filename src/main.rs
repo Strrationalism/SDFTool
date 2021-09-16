@@ -2,7 +2,9 @@ mod context;
 mod charset;
 mod basic_font_generator;
 mod mono_image;
+mod atlas_generator;
 
+use atlas_generator::AtlasGenerator;
 use basic_font_generator::*;
 use charset::CharsetRequest;
 use clap::{App, Arg, ArgMatches, SubCommand};
@@ -97,7 +99,7 @@ fn main() {
                     .long("origin-scale")
                     .default_value("384")
                     .help("Basic font scale before downsample"))
-                /*.arg(Arg::with_name("page-width")
+                .arg(Arg::with_name("page-width")
                     .long("page-width")
                     .default_value("1024")
                     .help("Single page width in pixels"))
@@ -112,7 +114,7 @@ fn main() {
                 .arg(Arg::with_name("margin-y")
                     .long("margin-y")
                     .default_value("0")
-                    .help("Margin Y on every sdf character in pixels"))*/
+                    .help("Margin Y on every sdf character in pixels"))
                 .arg(Arg::with_name("padding-x")
                     .long("padding-x")
                     .default_value("24")
@@ -144,7 +146,6 @@ fn main() {
 fn font(args: &ArgMatches) {
     let basic_gen = Arc::new(BasicFontGenerator::from(args));
     let charset = CharsetRequest::from_args(args).get_charset();
-    //let charset = vec!['草', 'a', 'A', '0', ','];
     
     let progress_bar = Arc::new(Mutex::new(ProgressBar::new(charset.len())));
 
@@ -171,6 +172,14 @@ fn font(args: &ArgMatches) {
         panic!("Stride must greate or equals 1.")
     }
 
+    let atlas_generator = Arc::new(Mutex::new(AtlasGenerator::new(
+        args.value_of("page-width").unwrap().parse().unwrap(),
+        args.value_of("page-height").unwrap().parse().unwrap(),
+        args.value_of("OUTDIR").unwrap().parse().unwrap(),
+        args.value_of("margin-x").unwrap().parse().unwrap(),
+        args.value_of("margin-y").unwrap().parse().unwrap()
+    )));
+
     let workers: Vec<_> =
         platform::get_platforms()
             .unwrap()
@@ -190,6 +199,7 @@ fn font(args: &ArgMatches) {
                     let cvar = cvar.clone();
                     let task = task.clone();
                     let device_ptr = device_id as usize;
+                    let atlas_generator = atlas_generator.clone();
                     
                     threads.push(thread::spawn(move ||{
                         let context = Context::new(
@@ -339,15 +349,14 @@ fn font(args: &ArgMatches) {
                             }
 
                             {   // Send Result
-                                if let Some((_ch, event, sdf_width, sdf_height)) = sdf_task {
+                                if let Some((ch, event, sdf_width, sdf_height)) = sdf_task {
                                     result_buf.resize(sdf_width, sdf_height);
                                     context.read_buffer_to_cpu(
                                         ocl_buf_result.as_ref().unwrap(), 
                                         &mut result_buf.pixels, 
                                         &[event]).wait().unwrap();
                                     
-                                    /*result_buf.save_png(
-                                        &Path::new(&format!("out/{}.png", _ch as i32)));*/
+                                    atlas_generator.lock().unwrap().push(ch, &result_buf);
                                 }
                             }
 
@@ -392,6 +401,10 @@ fn font(args: &ArgMatches) {
         let mut task = task.lock().unwrap();
         if task.is_some() {
             task = cvar.wait(task).unwrap();
+            
+            if *task == None {
+                break;
+            }
         } else {
             break;
         }
@@ -402,6 +415,10 @@ fn font(args: &ArgMatches) {
     for i in workers {
         i.join().unwrap();
     }
+
+    let atlas_generator = atlas_generator.lock().unwrap();
+    atlas_generator.save_current_page();
+    atlas_generator.save_metadata();
 
     progress_bar
         .lock()
