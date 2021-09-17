@@ -2,6 +2,7 @@ use std::{collections::BTreeSet, path::PathBuf, str::FromStr};
 
 pub struct CharsetRequest {
     pub ascii: bool,
+    pub schinese_punc: bool,
     pub schinese1: bool,
     pub schinese2: bool,
     pub schinese3: bool,
@@ -14,6 +15,10 @@ impl CharsetRequest {
 
         if arg.is_present("no-ascii") {
             x.ascii = false;
+        }
+
+        if arg.is_present("schinese-punc") {
+            x.schinese_punc = true;
         }
 
         if arg.is_present("schinese1") {
@@ -44,6 +49,7 @@ impl CharsetRequest {
     pub fn new() -> Self {
         Self {
             ascii: true,
+            schinese_punc: false,
             schinese1: false,
             schinese2: false,
             schinese3: false,
@@ -56,6 +62,10 @@ impl CharsetRequest {
 
         if self.ascii {
             s.push_str(include_str!("./charset/ascii.txt"));
+        }
+
+        if self.schinese_punc {
+            s.push_str(include_str!("./charset/schinese-punctuation.txt"));
         }
 
         if self.schinese1 {

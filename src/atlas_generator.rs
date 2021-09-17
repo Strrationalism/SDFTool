@@ -48,8 +48,8 @@ impl AtlasGenerator {
         }
     }
 
-    fn next_line(&mut self) -> bool {
-        if self.y + self.current_height < self.page.height {            
+    fn next_line(&mut self, character_height: usize) -> bool {
+        if self.y + self.current_height + character_height < self.page.height {            
             self.y += self.current_height;
             self.current_height = 0;
             self.x = 0;
@@ -80,8 +80,13 @@ impl AtlasGenerator {
             panic!("Page size is too small!");
         }
 
+        if self.y + height >= self.page.height {
+            self.save_current_page();
+            self.next_page();
+        }
+
         if self.x + width >= self.page.width {
-            if !self.next_line() {
+            if !self.next_line(height) {
                 self.save_current_page();
                 self.next_page();
             }
