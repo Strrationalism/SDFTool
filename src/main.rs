@@ -122,7 +122,14 @@ fn main() {
                 .arg(Arg::with_name("padding-y")
                     .long("padding-y")
                     .default_value("24")
-                    .help("Padding Y on every basic character in pixels")));
+                    .help("Padding Y on every basic character in pixels"))
+                .arg(Arg::with_name("charset")
+                    .long("charset")
+                    .short("c")
+                    .multiple(true)
+                    .required(false)
+                    .takes_value(true)
+                    .help("Additional charset to generate")));
 
     if std::env::args().nth(1) == None {
         app.print_help().unwrap();
@@ -367,22 +374,6 @@ fn font(args: &ArgMatches) {
 
                 threads
             }).collect();
-
-    {
-        let ref mut p = progress_bar.lock().unwrap();
-
-        p.print_info(
-            "Info", 
-            &format!("Stride: {}", stride), 
-            Color::Green, 
-            Style::Bold);
-
-        p.print_info(
-            "Info", 
-            &format!("Search Radius: {}", search_radius), 
-            Color::Green, 
-            Style::Bold);
-    }
     
     for i in charset {
         let mut task = task.lock().unwrap();

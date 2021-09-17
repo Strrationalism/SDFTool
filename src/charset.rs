@@ -1,10 +1,11 @@
-use std::{collections::BTreeSet};
+use std::{collections::BTreeSet, path::PathBuf, str::FromStr};
 
 pub struct CharsetRequest {
     pub ascii: bool,
     pub schinese1: bool,
     pub schinese2: bool,
-    pub schinese3: bool
+    pub schinese3: bool,
+    pub additional: Vec<PathBuf>
 }
 
 impl CharsetRequest {
@@ -27,6 +28,16 @@ impl CharsetRequest {
             x.schinese3 = true;
         }
 
+        if arg.is_present("charset") {
+            x.additional =
+                arg
+                    .values_of("charset")
+                    .unwrap()
+                    .map(PathBuf::from_str)
+                    .map(Result::unwrap)
+                    .collect()
+        }
+
         x
     }
 
@@ -35,7 +46,8 @@ impl CharsetRequest {
             ascii: true,
             schinese1: false,
             schinese2: false,
-            schinese3: false
+            schinese3: false,
+            additional: vec![]
         }
     }
 
@@ -56,6 +68,10 @@ impl CharsetRequest {
 
         if self.schinese3 {
             s.push_str(include_str!("./charset/common-standard-chinese-characters-table/level-3.txt"));
+        }
+
+        for i in &self.additional {
+            s.push_str(&std::fs::read_to_string(i).unwrap());
         }
 
         s.chars().filter(|x| *x != '\n' && *x != '\r').collect()
