@@ -18,6 +18,20 @@ Run `cargo build --release` in terminal.
 3. Configure the PATH to make cargo can find `libOpenCL.a`.
 4. Run `cargo build --release` in terminal.
 
+## Install
+
+### Windows
+Run `cargo install --git https://github.com/Strrationalism/SDFTool.git sdftool` in Visual Studio developer command prompt.
+
+### macOS
+Run `cargo install --git https://github.com/Strrationalism/SDFTool.git sdftool` in terminal.
+
+### Linux
+1. Install OpenCL drivers.
+2. Install Intel/AMD OpenCL SDK.
+3. Configure the PATH to make cargo can find `libOpenCL.a`.
+4. Run `cargo install --git https://github.com/Strrationalism/SDFTool.git sdftool` in terminal.
+
 ## Usage
 
 ### Show OpenCL devices
