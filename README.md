@@ -5,7 +5,7 @@ Signed distance field font and image command line tool based on OpenCL.
 
 ### Windows
 
-Run `cargo build --release` in Visual Studio developer command prompt.
+Run `cargo build --release` in Visual Studio developer x64 command prompt.
 
 ### macOS
 
@@ -21,7 +21,7 @@ Run `cargo build --release` in terminal.
 ## Install
 
 ### Windows
-Run `cargo install --git https://github.com/Strrationalism/SDFTool.git sdftool` in Visual Studio developer command prompt.
+Run `cargo install --git https://github.com/Strrationalism/SDFTool.git sdftool` in Visual Studio developer x64 command prompt.
 
 ### macOS
 Run `cargo install --git https://github.com/Strrationalism/SDFTool.git sdftool` in terminal.
