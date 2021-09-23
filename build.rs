@@ -30,11 +30,15 @@ fn setup_opencl_sdk_for_msvc() {
 
     assert!(status.success());
     
+    let out_dir = std::env::var("OUT_DIR").unwrap();
+    std::fs::copy("./OpenCL-SDK/build/external/OpenCL-ICD-Loader/OpenCL.dll", out_dir + "/../../../OpenCL.dll").unwrap();
 }
 
 fn main() {
     let project_dir = std::env::var("CARGO_MANIFEST_DIR").unwrap();
     let target = std::env::var("TARGET").unwrap();
-    if target.contains("msvc") { setup_opencl_sdk_for_msvc(); }
+    
+    if target.contains("pc-windows-msvc") { setup_opencl_sdk_for_msvc(); }
+    
     println!("cargo:rustc-link-search={}/OpenCL-SDK/build/external/OpenCL-ICD-Loader/", project_dir);
 }
