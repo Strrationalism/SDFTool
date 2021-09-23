@@ -39,9 +39,6 @@ jobs:
     - name: Test Executable File
       run: ${{ github.workspace }}/target/release/sdftool
       
-    - name: Test OpenCL
-      run: ${{ github.workspace }}/target/release/sdftool cl-devices
-      
     - name: Upload a Build Artifact
       uses: actions/upload-artifact@v2.2.4
       with:
