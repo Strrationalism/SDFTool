@@ -29,36 +29,42 @@ sdftool cl-devices
 ### Create SDF image for PNG symbol
 ```
 USAGE:
-    sdftool symbol [OPTIONS] <INPUT> <OUTPUT>
+    sdftool symbol [FLAGS] [OPTIONS] <INPUT> <OUTPUT>
+
+FLAGS:
+        --cpu        Do not use OpenCL.
+    -h, --help       Prints help information
+    -V, --version    Prints version information
 
 OPTIONS:
-        --device-id <device-id>         Select the device to use [default: 0]
-        --platform-id <platform-id>     Select the platform to use [default: 0]
-    -r, --search-radius <search-radius> Set the radius for edge searching [default: 128]
-    -s, --stride <stride>               Set the downsample stride size (1 will not downsample) [default: 4]
+        --device-id <device-id>            Select the device to use [default: 0]
+        --platform-id <platform-id>        Select the platform to use [default: 0]
+    -r, --search-radius <search-radius>    Set the radius for edge searching [default: 128]
+    -s, --stride <stride>                  Set the downsample stride size (1 will not downsample) [default: 4]
 
 ARGS:
     <INPUT>     Symbol image in PNG format
     <OUTPUT>    Output path for SDF image in PNG format
+
 ```
 
 ### Create SDF font atlas from TTF/OTF
 ```
-sdftool-font
-Create the sdf font
-
 USAGE:
     sdftool font [FLAGS] [OPTIONS] <INPUT> <OUTDIR>
 
 FLAGS:
-    -h, --help          Prints help information
-        --no-ascii      Do not generate ascii charset
-        --schinese-1    Generate common standard chinese table 1
-        --schinese-2    Generate common standard chinese table 2
-        --schinese-3    Generate common standard chinese table 3
-    -V, --version       Prints version information
+        --cpu              Do not use OpenCL.
+    -h, --help             Prints help information
+        --no-ascii         Do not generate ascii charset
+        --schinese-punc    Generate punctuations for schinese
+        --schinese-1       Generate common standard chinese table 1
+        --schinese-2       Generate common standard chinese table 2
+        --schinese-3       Generate common standard chinese table 3
+    -V, --version          Prints version information
 
 OPTIONS:
+    -c, --charset <charset>...             Additional charset to generate
         --margin-x <margin-x>              Margin X on every sdf character in pixels [default: 0]
         --margin-y <margin-y>              Margin Y on every sdf character in pixels [default: 0]
         --origin-scale <origin-scale>      Basic font scale before downsample [default: 384]
@@ -72,4 +78,5 @@ OPTIONS:
 ARGS:
     <INPUT>     Input ttf/otf file
     <OUTDIR>    Output path
-    ```
+
+```
