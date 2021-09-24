@@ -37,10 +37,6 @@ pub fn edge_detect(
             let offset = 
                 get_offset(pos_x, pos_y, size_x, size_y);
 
-            if offset == 268800 {
-                ;
-            }
-
             if src[offset] >= 128 {
                 let mut is_edge = false;
                 
