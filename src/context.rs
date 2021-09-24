@@ -160,29 +160,9 @@ impl Context {
         png: &str)
         -> (memory::Buffer<u8>, usize, usize)
     {
-        let input_png = 
-            png::Decoder::new(
-                std::fs::File::open(png)
-                    .expect("Can not open the input file."));
-
-        let mut png_info = 
-            input_png
-                .read_info()
-                .expect("Can not read information of png.");
-
-        let mut buf = 
-            vec![0; png_info.output_buffer_size()];
-
-        let frame_info = 
-            png_info
-                .next_frame(&mut buf)
-                .expect("Can not read frame from png.");
-
+        use crate::MonoImage;
+        let (frame_info, mut buf) = MonoImage::load_png_pixels(png);
         let image_bytes = &mut buf[..frame_info.buffer_size()];
-
-        if frame_info.bit_depth != png::BitDepth::Eight {
-            panic!("PNG Frame must in 8 bits.");
-        }
 
         let mut input_image = 
             memory::Buffer::<u8>::create(

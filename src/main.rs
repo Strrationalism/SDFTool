@@ -3,6 +3,7 @@ mod charset;
 mod basic_font_generator;
 mod mono_image;
 mod atlas_generator;
+mod program_cpu;
 
 use atlas_generator::AtlasGenerator;
 use basic_font_generator::*;
@@ -36,6 +37,11 @@ fn main() {
             .default_value("4")
             .multiple(false);
 
+    let cpu_arg =
+        Arg::with_name("cpu")
+            .help("Do not use OpenCL.")
+            .long("cpu");
+
     let mut app = 
         App::new("SDF Tool")
             .bin_name("sdftool")
@@ -64,7 +70,8 @@ fn main() {
                     .multiple(false)
                     .default_value("0"))
                 .arg(search_radius_arg.clone())
-                .arg(stride_arg.clone()))
+                .arg(stride_arg.clone())
+                .arg(cpu_arg))
             .subcommand(SubCommand::with_name("cl-devices")
                 .about("List OpenCL devices"))
             .subcommand(SubCommand::with_name("font")
@@ -427,8 +434,17 @@ fn font(args: &ArgMatches) {
 
 fn show_cl_devices() {
     let platforms = 
-    platform::get_platforms()
-        .expect("Can not get opencl platforms.");
+        match platform::get_platforms() {
+            Ok(x) if x.len() == 0 => {
+                println!("Can not get OpenCL platforms.");
+                return;
+            },
+            Err(_) => {
+                println!("Can not get OpenCL platforms.");
+                return;
+            },
+            Ok(x) => x
+        };
 
     let mut platform_id = 0;
 
@@ -460,13 +476,60 @@ fn show_cl_devices() {
     }
 }
 
+fn get_stride_and_search_radius(matches: &clap::ArgMatches) -> (usize, usize) {
+    let stride = 
+        matches.value_of("stride").unwrap().parse().unwrap();
+
+    let search_radius = 
+        matches.value_of("search-radius").unwrap().parse().unwrap();
+
+    if stride <= 0 {
+        panic!("Stride must greate or equals 1.")
+    }
+
+    (stride, search_radius)
+}
+
+fn symbol_cpu(matches: &clap::ArgMatches) {
+    println!("Info: Rendering on CPU.");
+    
+    let image =
+        MonoImage::load_from_file(
+            matches.value_of("INPUT").expect("No input png given."));
+
+    let mut edge = MonoImage::new(image.width, image.height);
+    image.edge_detect(&mut edge);
+
+    let (stride, search_radius) = 
+        get_stride_and_search_radius(&matches);
+
+    let mut result_sdf = 
+        MonoImage::new(edge.width / stride, edge.height / stride);
+
+    edge.edge_generate_sdf(&mut result_sdf, stride, search_radius);
+
+    result_sdf.save_png(&Path::new(
+        matches
+            .value_of("OUTPUT")
+            .expect("Output path not given.")));
+}
+
 fn symbol(matches: &clap::ArgMatches) {
+    if matches.is_present("cpu") {
+        return symbol_cpu(matches);
+    }
+
     let platform =
-        platform::get_platforms()
-            .unwrap()
-            .into_iter()
-            .nth(matches.value_of("platform-id").unwrap().parse::<usize>().unwrap())
-            .expect("Can not get the platform.");
+        match platform::get_platforms() {
+            Ok(x) if x.len() == 0 => return symbol_cpu(matches),
+            Err(_) => return symbol_cpu(matches),
+            Ok(x) => 
+                x
+                    .into_iter()
+                    .nth(matches.value_of("platform-id").unwrap().parse::<usize>().unwrap())
+                    .expect("Can not get the platform.")
+        };
+            
 
     let device_id =
         matches.value_of("device-id").unwrap().parse::<usize>().unwrap();
@@ -499,15 +562,8 @@ fn symbol(matches: &clap::ArgMatches) {
             height,
             &[]);
 
-    let stride = 
-        matches.value_of("stride").unwrap().parse().unwrap();
-
-    let search_radius = 
-        matches.value_of("search-radius").unwrap().parse().unwrap();
-
-    if stride <= 0 {
-        panic!("Stride must greate or equals 1.")
-    }
+    let (stride, search_radius) = 
+        get_stride_and_search_radius(&matches);
 
     let mut result_sdf = 
         MonoImage::new(width / stride, height / stride);
