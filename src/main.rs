@@ -185,15 +185,8 @@ fn font(args: &ArgMatches) {
 
     let cvar = Arc::new(Condvar::new());
 
-    let stride: usize = 
-        args.value_of("stride").unwrap().parse().unwrap();
-
-    let search_radius: usize = 
-        args.value_of("search-radius").unwrap().parse().unwrap();
-
-    if stride <= 0 {
-        panic!("Stride must greate or equals 1.")
-    }
+    let (stride, search_radius) = 
+        get_stride_and_search_radius(&args);
 
     let atlas_generator = Arc::new(Mutex::new(AtlasGenerator::new(
         args.value_of("page-width").unwrap().parse().unwrap(),
