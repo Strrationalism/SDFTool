@@ -22,7 +22,7 @@ use progress_bar::color::{Color, Style};
 use crate::mono_image::MonoImage;
 
 const DEVICE_TYPE : types::cl_bitfield = 
-    device::CL_DEVICE_TYPE_ALL & !device::CL_DEVICE_TYPE_CPU;
+    device::CL_DEVICE_TYPE_ALL;
 
 fn main() {
     let search_radius_arg =
@@ -204,6 +204,7 @@ fn font(args: &ArgMatches) {
     )));
 
     let enable_opencl_workers = !args.is_present("cpu");
+    let mut cpu_workers_num = num_cpus::get() as i32;
 
     let create_opencl_workers = |platform: Platform| {
         let devices =
@@ -214,6 +215,12 @@ fn font(args: &ArgMatches) {
         
         let mut threads = Vec::new();
         for device_id in devices {
+            {
+                let device = device::Device::new(device_id);
+                if device.dev_type().unwrap() == device::CL_DEVICE_TYPE_CPU {
+                    cpu_workers_num = 0;
+                }
+            }
             let progress_bar = progress_bar.clone();
             let basic_gen = basic_gen.clone();
             let run = run.clone();
@@ -414,8 +421,11 @@ fn font(args: &ArgMatches) {
             vec![]
         };
 
+    cpu_workers_num = cpu_workers_num - (opencl_workers.len() as i32);
+    cpu_workers_num = cpu_workers_num.clamp(0, i32::MAX);
+
     let cpu_workers : Vec<_> = 
-        (0 .. num_cpus::get() - opencl_workers.len())
+        (0 .. cpu_workers_num)
             .into_iter()
             .map(|_| {
                 let progress_bar = progress_bar.clone();
